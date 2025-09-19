@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "UNHbymiGbKQ=",
+  "dgSpecHash": "6vFh8H7RbsQ=",
   "success": true,
-  "projectFilePath": "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\StreamSync.csproj",
+  "projectFilePath": "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\StreamSync.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\hesha\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\hesha\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",
