@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Test container for manual testing
+  neko-test-browser:
+    image: ghcr.io/m1k1o/neko/chromium:latest
+    container_name: neko-test-browser
+    restart: unless-stopped
+    shm_size: 2gb
+    ports:
+      - "8080:8080"
+      - "59000-59099:59000-59099/udp"
+    environment:
+      - NEKO_DESKTOP_SCREEN=1920x1080@30
+      - NEKO_MEMBER_MULTIUSER_USER_PASSWORD=neko-test-browser
+      - NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=neko-test-browser
+      - NEKO_WEBRTC_EPR=59000-59099
+      - NEKO_WEBRTC_ICELITE=1
+      - NEKO_WEBRTC_NAT1TO1=127.0.0.1
+      # Audio configuration
+      - NEKO_AUDIO_CODEC=opus
+      - NEKO_AUDIO_BITRATE=128000
+      # Chromium specific settings with audio support
+      - CHROME_FLAGS=--no-sandbox --disable-dev-shm-usage --disable-gpu --autoplay-policy=no-user-gesture-required --disable-features=VizDisplayCompositor --use-fake-ui-for-media-stream --enable-audio-service-sandbox=false --disable-audio-sandbox
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    profiles:
+      - test
+    networks:
+      - watchparty-network
+
+networks:
+  watchparty-network:
+    name: watchparty-network
+    external: true
