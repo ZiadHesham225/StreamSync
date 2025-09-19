@@ -153,8 +153,8 @@ We welcome contributions! Here's how to get started:
 
 ### 1. Fork & Clone
 ```bash
-git fork https://github.com/ZiadHesham225/Watch-Party-App.git
-git clone https://github.com/your-username/Watch-Party-App.git
+git fork https://github.com/ZiadHesham225/StreamSync.git
+git clone https://github.com/your-username/StreamSync.git
 ```
 
 ### 2. Create Feature Branch
