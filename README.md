@@ -2,6 +2,37 @@
 
 A real-time synchronized video watching application that allows users to create rooms and watch YouTube videos together with friends. Built with ASP.NET Core backend and React frontend.
 
+## 🖥️ Virtual Browser Feature (Neko)
+
+StreamSync now supports a **Virtual Browser** feature powered by [Neko](https://github.com/m1k1o/neko) running in Docker containers. This allows users to request a shared browser session for collaborative browsing, streaming, or remote control directly from the app.
+
+### Key Capabilities
+- **Request a Virtual Browser**: Room admins/controllers can request a browser session for their room.
+- **Queue System**: If all browsers are busy, rooms are placed in a queue and notified when a browser becomes available.
+- **WebRTC Streaming**: Real-time audio/video streaming using Neko's WebRTC.
+- **Session Management**: Automatic allocation, expiration, and cleanup of browser sessions.
+- **Remote Control**: Interact with the browser (mouse, keyboard, navigation) from the app UI.
+
+### Backend Services Overview
+- `VirtualBrowserController`: API endpoints for requesting, controlling, and managing virtual browser sessions.
+- `NekoVirtualBrowserService`: Core logic for allocating containers, session lifecycle, and integration with Neko.
+- `VirtualBrowserQueueService`: Handles queuing, notifications, and room queue status.
+- `VirtualBrowserStartupService`: Initializes the browser pool on backend startup.
+- `VirtualBrowserMaintenanceService`: Background service for session expiration and notification processing.
+- DTOs and Models: `VirtualBrowserDto`, `VirtualBrowserRequestDto`, `VirtualBrowserControlDto`, etc.
+
+
+> **Note:** You can scale the number of Neko containers for more concurrent browser sessions. Update backend configuration accordingly.
+
+### How to Use
+1. **Room admin/controller requests a Virtual Browser** via the app UI.
+2. If available, a browser session is allocated and a WebRTC stream URL is provided.
+3. If busy, the room is queued and notified when a browser is free.
+4. Participants can interact with the browser (mouse, keyboard, navigation).
+5. Sessions expire after a set duration (e.g., 3 hours) and are automatically cleaned up.
+
+For more details, see the backend services in `StreamSync/StreamSync/Services/` and API endpoints in `VirtualBrowserController`.
+
 ## ✨ Features
 
 ### 🎥 Video Synchronization
@@ -14,6 +45,7 @@ A real-time synchronized video watching application that allows users to create 
 
 ### 🏠 Room Management
 - **Create public/private rooms**: Host watch parties with customizable privacy settings
+ - **Create public/private rooms**: Host StreamSync rooms with customizable privacy settings
 - **Room passwords**: Secure private rooms with password protection
 - **Invite codes**: Easy room sharing with unique invite codes
 - **Participant management**: View active participants with avatar support
@@ -69,17 +101,18 @@ A real-time synchronized video watching application that allows users to create 
 
 ## 📋 Prerequisites
 
-- **.NET 8 SDK**: [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
-- **Node.js 16+**: [Download here](https://nodejs.org/)
-- **SQL Server**: LocalDB, Express, or full SQL Server
-- **YouTube API Key**: [Get from Google Cloud Console](https://console.cloud.google.com/)
+**.NET 8 SDK**: [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
+**Node.js 16+**: [Download here](https://nodejs.org/)
+**SQL Server**: LocalDB, Express, or full SQL Server
+**YouTube API Key**: [Get from Google Cloud Console](https://console.cloud.google.com/)
+**Docker**: Required for running the Virtual Browser (Neko) containers. [Download Docker](https://www.docker.com/products/docker-desktop)
 
 ## 🚀 Installation & Setup
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/ZiadHesham225/Watch-Party-App.git
-cd Watch-Party-App
+git clone https://github.com/ZiadHesham225/StreamSync.git
+cd StreamSync
 ```
 
 ### 2. Backend Setup
@@ -141,7 +174,7 @@ Update `StreamSync/appsettings.json`:
 ## 🎯 Usage
 
 1. **Register/Login**: Create an account or sign in
-2. **Create Room**: Start a new watch party (public or private)
+2. **Create Room**: Start a new StreamSync room (public or private)
 3. **Invite Friends**: Share the room invite code
 4. **Select Video**: Search YouTube or paste video URLs
 5. **Watch Together**: Enjoy synchronized playback with real-time chat
