@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\StreamSync.csproj": {}
+    "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\StreamSync.csproj": {}
   },
   "projects": {
-    "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\StreamSync.csproj": {
+    "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\StreamSync.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\StreamSync.csproj",
+        "projectUniqueName": "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\StreamSync.csproj",
         "projectName": "StreamSync",
-        "projectPath": "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\StreamSync.csproj",
+        "projectPath": "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\StreamSync.csproj",
         "packagesPath": "C:\\Users\\hesha\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\hesha\\Documents\\CSharp\\StreamSync\\StreamSync\\StreamSync\\obj\\",
+        "outputPath": "C:\\Users\\hesha\\Desktop\\StreamSync-new\\StreamSync\\StreamSync\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
