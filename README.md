@@ -101,11 +101,11 @@ For more details, see the backend services in `StreamSync/StreamSync/Services/` 
 
 ## 📋 Prerequisites
 
-**.NET 8 SDK**: [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
-**Node.js 16+**: [Download here](https://nodejs.org/)
-**SQL Server**: LocalDB, Express, or full SQL Server
-**YouTube API Key**: [Get from Google Cloud Console](https://console.cloud.google.com/)
-**Docker**: Required for running the Virtual Browser (Neko) containers. [Download Docker](https://www.docker.com/products/docker-desktop)
+- **.NET 8 SDK**: [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
+- **Node.js 16+**: [Download here](https://nodejs.org/)
+- **SQL Server**: LocalDB, Express, or full SQL Server
+- **YouTube API Key**: [Get from Google Cloud Console](https://console.cloud.google.com/)
+- **Docker**: Required for running the Virtual Browser (Neko) containers. [Download Docker](https://www.docker.com/products/docker-desktop)
 
 ## 🚀 Installation & Setup
 
