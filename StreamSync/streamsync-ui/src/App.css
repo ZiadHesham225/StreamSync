@@ -1,0 +1,357 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, textarea {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Better focus styles */
+button:focus, input:focus, textarea:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Chat message bubbles animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.chat-message {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Video player fullscreen improvements */
+.fullscreen-player:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+}
+
+.fullscreen-player:fullscreen video {
+  flex: 1;
+  object-fit: contain;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.fullscreen-player:fullscreen .absolute {
+  position: absolute !important;
+}
+
+/* Ensure controls are always visible on hover in fullscreen */
+.fullscreen-player:fullscreen:hover .opacity-0 {
+  opacity: 1 !important;
+}
+
+.fullscreen-player:fullscreen .bg-gradient-to-t {
+  background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.4), transparent) !important;
+}
+
+/* WebKit fullscreen support */
+.fullscreen-player:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+}
+
+.fullscreen-player:-webkit-full-screen video {
+  flex: 1;
+  object-fit: contain;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.fullscreen-player:-webkit-full-screen:hover .opacity-0 {
+  opacity: 1 !important;
+}
+
+/* Firefox fullscreen support */
+.fullscreen-player:-moz-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+}
+
+.fullscreen-player:-moz-full-screen video {
+  flex: 1;
+  object-fit: contain;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.fullscreen-player:-moz-full-screen:hover .opacity-0 {
+  opacity: 1 !important;
+}
+
+video:fullscreen {
+  object-fit: contain;
+}
+
+video:-webkit-full-screen {
+  object-fit: contain;
+}
+
+video:-moz-full-screen {
+  object-fit: contain;
+}
+
+/* Fullscreen container styles for video + chat */
+#fullscreen-container:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+  padding: 0;
+  margin: 0;
+}
+
+#fullscreen-container:fullscreen > div:first-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat {
+  height: 200px !important;
+  border-top: 1px solid #333 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .bg-white {
+  background: rgba(0, 0, 0, 0.9) !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .text-gray-900 {
+  color: white !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .border-gray-200 {
+  border-color: #333 !important;
+}
+
+/* WebKit fullscreen support for container */
+#fullscreen-container:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+  padding: 0;
+  margin: 0;
+}
+
+#fullscreen-container:-webkit-full-screen > div:first-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#fullscreen-container:-webkit-full-screen .fullscreen-chat {
+  height: 200px !important;
+  border-top: 1px solid #333 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white;
+}
+
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .bg-white {
+  background: rgba(0, 0, 0, 0.9) !important;
+}
+
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .text-gray-900 {
+  color: white !important;
+}
+
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .border-gray-200 {
+  border-color: #333 !important;
+}
+
+/* Firefox fullscreen support for container */
+#fullscreen-container:-moz-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  background: black;
+  padding: 0;
+  margin: 0;
+}
+
+#fullscreen-container:-moz-full-screen > div:first-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#fullscreen-container:-moz-full-screen .fullscreen-chat {
+  height: 200px !important;
+  border-top: 1px solid #333 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white;
+}
+
+#fullscreen-container:-moz-full-screen .fullscreen-chat .bg-white {
+  background: rgba(0, 0, 0, 0.9) !important;
+}
+
+#fullscreen-container:-moz-full-screen .fullscreen-chat .text-gray-900 {
+  color: white !important;
+}
+
+#fullscreen-container:-moz-full-screen .fullscreen-chat .border-gray-200 {
+  border-color: #333 !important;
+}
+
+/* More specific fullscreen chat styling */
+#fullscreen-container:fullscreen .fullscreen-chat h3,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat h3,
+#fullscreen-container:-moz-full-screen .fullscreen-chat h3 {
+  color: white !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .text-gray-500,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .text-gray-500,
+#fullscreen-container:-moz-full-screen .fullscreen-chat .text-gray-500 {
+  color: #ccc !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .bg-gray-100,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .bg-gray-100,
+#fullscreen-container:-moz-full-screen .fullscreen-chat .bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat .text-gray-800,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat .text-gray-800,
+#fullscreen-container:-moz-full-screen .fullscreen-chat .text-gray-800 {
+  color: #f0f0f0 !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat input,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat input,
+#fullscreen-container:-moz-full-screen .fullscreen-chat input {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  border-color: #555 !important;
+}
+
+#fullscreen-container:fullscreen .fullscreen-chat input::placeholder,
+#fullscreen-container:-webkit-full-screen .fullscreen-chat input::placeholder,
+#fullscreen-container:-moz-full-screen .fullscreen-chat input::placeholder {
+  color: #ccc !important;
+}
+
+/* Responsive breakpoints for better mobile support */
+@media (max-width: 768px) {
+  .participants-panel {
+    position: absolute;
+    right: -100%;
+    top: 0;
+    height: 100%;
+    z-index: 50;
+    transition: right 0.3s ease-in-out;
+  }
+  
+  .participants-panel.open {
+    right: 0;
+  }
+}
