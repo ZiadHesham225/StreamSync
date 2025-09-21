@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("StreamSync")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+03b890c9c63f97572bf71f3b4eb96acd88553850")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+303b15fb481e7c07f1840e3d1f0c2491d4a0ccc2")]
 [assembly: System.Reflection.AssemblyProductAttribute("StreamSync")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StreamSync")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

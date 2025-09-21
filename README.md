@@ -1,6 +1,6 @@
 # 🎬 StreamSync App V1
 
-A real-time synchronized video watching application that allows users to create rooms and watch YouTube videos together with friends. Built with ASP.NET Core backend and React frontend.
+StreamSync is a collaborative platform for hosting real-time watch parties, enabling users to create interactive rooms where they can watch YouTube videos, chat, and share control with friends. Featuring advanced video synchronization, live chat, user management, and a unique Virtual Browser powered by Docker/Neko for shared browsing experiences. The backend is built with ASP.NET Core, while the frontend leverages React and TypeScript for a seamless, modern user experience.
 
 ## 🖥️ Virtual Browser Feature (Neko)
 
