@@ -1,5 +1,5 @@
 # 🎬 StreamSync
-![App Screenshot](screenshots/screenshot1.png)
+![App Screenshot](assets/screenshot1.png)
 
 ## Description
 
