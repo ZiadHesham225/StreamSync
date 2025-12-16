@@ -23,6 +23,16 @@ namespace StreamSync.DataAccess.Repositories
         {
             return await dbSet
                 .Where(r => r.AdminId == adminId)
+                .Include(r => r.Admin)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Room>> GetActiveRoomsByAdminAsync(string adminId)
+        {
+            return await dbSet
+                .Where(r => r.AdminId == adminId && r.IsActive)
+                .Include(r => r.Admin)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
         }
