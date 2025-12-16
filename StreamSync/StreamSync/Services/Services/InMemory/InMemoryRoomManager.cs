@@ -48,7 +48,12 @@ namespace StreamSync.BusinessLogic.Services.InMemory
 
         public RoomParticipant? GetController(string roomId)
         {
-            return GetRoomParticipants(roomId).FirstOrDefault(p => p.HasControl);
+            // Directly access the dictionary to avoid creating intermediate lists
+            if (_roomParticipants.TryGetValue(roomId, out var participants))
+            {
+                return participants.Values.FirstOrDefault(p => p.HasControl);
+            }
+            return null;
         }
 
         public void SetController(string roomId, string participantId)

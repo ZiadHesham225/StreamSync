@@ -180,10 +180,12 @@ namespace StreamSync.BusinessLogic.Services
 
                 var videosListResponse = await videosListRequest.ExecuteAsync();
 
+                // Use Dictionary for O(1) lookup instead of O(n) FirstOrDefault
+                var videoLookup = videos.ToDictionary(v => v.VideoId, v => v);
+                
                 foreach (var video in videosListResponse.Items)
                 {
-                    var matchingDto = videos.FirstOrDefault(v => v.VideoId == video.Id);
-                    if (matchingDto != null)
+                    if (videoLookup.TryGetValue(video.Id, out var matchingDto))
                     {
                         matchingDto.Duration = ParseYouTubeDuration(video.ContentDetails.Duration);
                     }
