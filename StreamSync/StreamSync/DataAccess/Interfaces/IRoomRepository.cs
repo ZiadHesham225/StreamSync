@@ -6,6 +6,7 @@ namespace StreamSync.DataAccess.Interfaces
     {
         Task<IEnumerable<Room>> GetActiveRoomsAsync();
         Task<IEnumerable<Room>> GetRoomsByAdminAsync(string adminId);
+        Task<IEnumerable<Room>> GetActiveRoomsByAdminAsync(string adminId);
         Task<Room> GetRoomByInviteCodeAsync(string inviteCode);
         Task<bool> RoomExistsAsync(string roomId);
     }

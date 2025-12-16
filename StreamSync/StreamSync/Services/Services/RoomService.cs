@@ -112,28 +112,23 @@ namespace StreamSync.BusinessLogic.Services
         {
             try
             {
-                var allRooms = await _unitOfWork.Rooms.GetAllAsync();
-                var activeRooms = allRooms.Where(r => r.IsActive).ToList();
+                // Use repository method that includes Admin navigation property to avoid N+1 queries
+                var activeRooms = await _unitOfWork.Rooms.GetActiveRoomsAsync();
                 
-                var result = new List<RoomDto>();
-                foreach (var room in activeRooms)
+                var result = activeRooms.Select(room => new RoomDto
                 {
-                    var admin = await _userManager.FindByIdAsync(room.AdminId);
-                    result.Add(new RoomDto
-                    {
-                        Id = room.Id,
-                        Name = room.Name,
-                        VideoUrl = room.VideoUrl,
-                        AdminId = room.AdminId,
-                        AdminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown",
-                        IsActive = room.IsActive,
-                        CreatedAt = room.CreatedAt,
-                        InviteCode = room.InviteCode,
-                        IsPrivate = room.IsPrivate,
-                        HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
-                        UserCount = 0
-                    });
-                }
+                    Id = room.Id,
+                    Name = room.Name,
+                    VideoUrl = room.VideoUrl,
+                    AdminId = room.AdminId,
+                    AdminName = room.Admin?.DisplayName ?? room.Admin?.UserName ?? "Unknown",
+                    IsActive = room.IsActive,
+                    CreatedAt = room.CreatedAt,
+                    InviteCode = room.InviteCode,
+                    IsPrivate = room.IsPrivate,
+                    HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
+                    UserCount = 0
+                }).ToList();
                 
                 return result;
             }
@@ -150,12 +145,14 @@ namespace StreamSync.BusinessLogic.Services
             {
                 pagination.Validate();
 
-                var allRooms = await _unitOfWork.Rooms.GetAllAsync();
-                var query = allRooms.Where(r => r.IsActive).AsQueryable();
+                // Use repository method that includes Admin navigation property to avoid N+1 queries
+                var activeRooms = await _unitOfWork.Rooms.GetActiveRoomsAsync();
+                var query = activeRooms.AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(pagination.Search))
                 {
-                    query = query.Where(r => r.Name.ToLower().Contains(pagination.Search.ToLower()));
+                    var searchLower = pagination.Search.ToLower();
+                    query = query.Where(r => r.Name.ToLower().Contains(searchLower));
                 }
 
                 query = pagination.SortBy?.ToLower() switch
@@ -176,25 +173,21 @@ namespace StreamSync.BusinessLogic.Services
                     .Take(pagination.PageSize)
                     .ToList();
 
-                var result = new List<RoomDto>();
-                foreach (var room in rooms)
+                // Map directly from rooms with included Admin - no additional queries needed
+                var result = rooms.Select(room => new RoomDto
                 {
-                    var admin = await _userManager.FindByIdAsync(room.AdminId);
-                    result.Add(new RoomDto
-                    {
-                        Id = room.Id,
-                        Name = room.Name,
-                        VideoUrl = room.VideoUrl,
-                        AdminId = room.AdminId,
-                        AdminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown",
-                        IsActive = room.IsActive,
-                        CreatedAt = room.CreatedAt,
-                        InviteCode = room.InviteCode,
-                        IsPrivate = room.IsPrivate,
-                        HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
-                        UserCount = 0
-                    });
-                }
+                    Id = room.Id,
+                    Name = room.Name,
+                    VideoUrl = room.VideoUrl,
+                    AdminId = room.AdminId,
+                    AdminName = room.Admin?.DisplayName ?? room.Admin?.UserName ?? "Unknown",
+                    IsActive = room.IsActive,
+                    CreatedAt = room.CreatedAt,
+                    InviteCode = room.InviteCode,
+                    IsPrivate = room.IsPrivate,
+                    HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
+                    UserCount = 0
+                }).ToList();
 
                 var totalPages = (int)Math.Ceiling((double)totalCount / pagination.PageSize);
 
@@ -225,29 +218,23 @@ namespace StreamSync.BusinessLogic.Services
                     return Enumerable.Empty<RoomDto>();
                 }
 
-                var allRooms = await _unitOfWork.Rooms.GetAllAsync();
-                var userRooms = allRooms.Where(r => r.AdminId == userId && r.IsActive).ToList();
+                // Use repository method that includes Admin navigation property to avoid N+1 queries
+                var userRooms = await _unitOfWork.Rooms.GetActiveRoomsByAdminAsync(userId);
                 
-                var result = new List<RoomDto>();
-                var admin = await _userManager.FindByIdAsync(userId);
-                
-                foreach (var room in userRooms)
+                var result = userRooms.Select(room => new RoomDto
                 {
-                    result.Add(new RoomDto
-                    {
-                        Id = room.Id,
-                        Name = room.Name,
-                        VideoUrl = room.VideoUrl,
-                        AdminId = room.AdminId,
-                        AdminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown",
-                        IsActive = room.IsActive,
-                        CreatedAt = room.CreatedAt,
-                        InviteCode = room.InviteCode,
-                        IsPrivate = room.IsPrivate,
-                        HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
-                        UserCount = 0
-                    });
-                }
+                    Id = room.Id,
+                    Name = room.Name,
+                    VideoUrl = room.VideoUrl,
+                    AdminId = room.AdminId,
+                    AdminName = room.Admin?.DisplayName ?? room.Admin?.UserName ?? "Unknown",
+                    IsActive = room.IsActive,
+                    CreatedAt = room.CreatedAt,
+                    InviteCode = room.InviteCode,
+                    IsPrivate = room.IsPrivate,
+                    HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
+                    UserCount = 0
+                }).ToList();
                 
                 return result;
             }
@@ -269,12 +256,14 @@ namespace StreamSync.BusinessLogic.Services
 
                 pagination.Validate();
 
-                var allRooms = await _unitOfWork.Rooms.GetAllAsync();
-                var query = allRooms.Where(r => r.AdminId == userId && r.IsActive).AsQueryable();
+                // Use repository method that includes Admin navigation property to avoid N+1 queries
+                var userRooms = await _unitOfWork.Rooms.GetActiveRoomsByAdminAsync(userId);
+                var query = userRooms.AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(pagination.Search))
                 {
-                    query = query.Where(r => r.Name.ToLower().Contains(pagination.Search.ToLower()));
+                    var searchLower = pagination.Search.ToLower();
+                    query = query.Where(r => r.Name.ToLower().Contains(searchLower));
                 }
 
                 query = pagination.SortBy?.ToLower() switch
@@ -295,26 +284,21 @@ namespace StreamSync.BusinessLogic.Services
                     .Take(pagination.PageSize)
                     .ToList();
 
-                var result = new List<RoomDto>();
-                var admin = await _userManager.FindByIdAsync(userId);
-                
-                foreach (var room in rooms)
+                // Map directly from rooms with included Admin - no additional queries needed
+                var result = rooms.Select(room => new RoomDto
                 {
-                    result.Add(new RoomDto
-                    {
-                        Id = room.Id,
-                        Name = room.Name,
-                        VideoUrl = room.VideoUrl,
-                        AdminId = room.AdminId,
-                        AdminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown",
-                        IsActive = room.IsActive,
-                        CreatedAt = room.CreatedAt,
-                        InviteCode = room.InviteCode,
-                        IsPrivate = room.IsPrivate,
-                        HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
-                        UserCount = 0
-                    });
-                }
+                    Id = room.Id,
+                    Name = room.Name,
+                    VideoUrl = room.VideoUrl,
+                    AdminId = room.AdminId,
+                    AdminName = room.Admin?.DisplayName ?? room.Admin?.UserName ?? "Unknown",
+                    IsActive = room.IsActive,
+                    CreatedAt = room.CreatedAt,
+                    InviteCode = room.InviteCode,
+                    IsPrivate = room.IsPrivate,
+                    HasPassword = !string.IsNullOrEmpty(room.PasswordHash),
+                    UserCount = 0
+                }).ToList();
 
                 var totalPages = (int)Math.Ceiling((double)totalCount / pagination.PageSize);
 
