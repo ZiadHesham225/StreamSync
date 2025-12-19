@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using System.Text.Json.Serialization;
 
 namespace StreamSync.Extensions
 {
@@ -10,8 +9,7 @@ namespace StreamSync.Extensions
             services.AddSignalR()
                 .AddJsonProtocol(options =>
                 {
-                    options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                    options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                    options.PayloadSerializerOptions.AddCommonJsonOptions();
                 });
             return services;
         }

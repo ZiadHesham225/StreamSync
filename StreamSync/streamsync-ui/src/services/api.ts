@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import { ApiError } from '../types/index';
+import { storageUtils } from '../utils/storageUtils';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://localhost:7189';
 const api = axios.create({
@@ -15,7 +16,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const token = storageUtils.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -45,12 +46,7 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('accessTokenExpiration');
-      localStorage.removeItem('refreshTokenExpiration');
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
+      storageUtils.clearAllTokens();
       
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register' && window.location.pathname !== '/reset-password') {
         window.location.href = '/login';
