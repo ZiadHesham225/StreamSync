@@ -8,7 +8,7 @@ namespace StreamSync.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class VirtualBrowserController : ControllerBase
+    public class VirtualBrowserController : BaseApiController
     {
         private readonly IVirtualBrowserService _virtualBrowserService;
         private readonly IRoomService _roomService;
@@ -28,7 +28,7 @@ namespace StreamSync.Controllers
         [HttpPost("request")]
         public async Task<IActionResult> RequestVirtualBrowser([FromBody] VirtualBrowserRequestDto request)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -60,7 +60,7 @@ namespace StreamSync.Controllers
         [HttpPost("release/{roomId}")]
         public async Task<IActionResult> ReleaseVirtualBrowser(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -113,7 +113,7 @@ namespace StreamSync.Controllers
         [HttpPost("queue/accept/{roomId}")]
         public async Task<IActionResult> AcceptQueueNotification(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -139,7 +139,7 @@ namespace StreamSync.Controllers
         [HttpPost("queue/decline/{roomId}")]
         public async Task<IActionResult> DeclineQueueNotification(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -165,7 +165,7 @@ namespace StreamSync.Controllers
         [HttpPost("queue/cancel/{roomId}")]
         public async Task<IActionResult> CancelQueue(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -191,7 +191,7 @@ namespace StreamSync.Controllers
         [HttpPost("navigate")]
         public async Task<IActionResult> NavigateVirtualBrowser([FromBody] VirtualBrowserNavigateDto request)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -223,7 +223,7 @@ namespace StreamSync.Controllers
         [HttpPost("control")]
         public async Task<IActionResult> ControlVirtualBrowser([FromBody] VirtualBrowserControlDto request)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -255,7 +255,7 @@ namespace StreamSync.Controllers
         [HttpPost("restart/{virtualBrowserId}")]
         public async Task<IActionResult> RestartBrowserProcess(string virtualBrowserId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
