@@ -9,7 +9,7 @@ namespace StreamSync.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class UserController : ControllerBase
+    public class UserController : BaseApiController
     {
         private readonly IUserService _userService;
         private readonly ILogger<UserController> _logger;
@@ -25,7 +25,7 @@ namespace StreamSync.Controllers
         {
             try
             {
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetAuthenticatedUserId();
 
                 if (string.IsNullOrEmpty(userId))
                 {
@@ -59,7 +59,7 @@ namespace StreamSync.Controllers
 
             try
             {
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetAuthenticatedUserId();
 
                 if (string.IsNullOrEmpty(userId))
                 {
@@ -93,7 +93,7 @@ namespace StreamSync.Controllers
 
             try
             {
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetAuthenticatedUserId();
 
                 if (string.IsNullOrEmpty(userId))
                 {

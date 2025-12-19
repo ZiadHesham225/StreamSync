@@ -9,6 +9,7 @@ import {
   PagedResult,
   PaginationQuery,
 } from '../types/index';
+import { paginationUtils } from '../utils/paginationUtils';
 
 export const roomService = {
   async getActiveRooms(): Promise<Room[]> {
@@ -16,18 +17,8 @@ export const roomService = {
   },
 
   async getActiveRoomsPaginated(pagination?: PaginationQuery): Promise<PagedResult<Room>> {
-    const params = new URLSearchParams();
-    if (pagination) {
-      if (pagination.page !== undefined) params.append('page', pagination.page.toString());
-      if (pagination.pageSize !== undefined) params.append('pageSize', pagination.pageSize.toString());
-      if (pagination.search) params.append('search', pagination.search);
-      if (pagination.sortBy) params.append('sortBy', pagination.sortBy);
-      if (pagination.sortDescending !== undefined) {
-        params.append('SortOrder', pagination.sortDescending ? 'desc' : 'asc');
-      }
-    }
-    const queryString = params.toString();
-    const url = queryString ? `/api/room/active?${queryString}` : '/api/room/active';
+    const queryString = paginationUtils.buildQueryString(pagination);
+    const url = `/api/room/active${queryString}`;
     return await apiService.get<PagedResult<Room>>(url);
   },
 
@@ -36,18 +27,8 @@ export const roomService = {
   },
 
   async getUserRoomsPaginated(pagination?: PaginationQuery): Promise<PagedResult<Room>> {
-    const params = new URLSearchParams();
-    if (pagination) {
-      if (pagination.page !== undefined) params.append('page', pagination.page.toString());
-      if (pagination.pageSize !== undefined) params.append('pageSize', pagination.pageSize.toString());
-      if (pagination.search) params.append('search', pagination.search);
-      if (pagination.sortBy) params.append('sortBy', pagination.sortBy);
-      if (pagination.sortDescending !== undefined) {
-        params.append('SortOrder', pagination.sortDescending ? 'desc' : 'asc');
-      }
-    }
-    const queryString = params.toString();
-    const url = queryString ? `/api/room/my-rooms?${queryString}` : '/api/room/my-rooms';
+    const queryString = paginationUtils.buildQueryString(pagination);
+    const url = `/api/room/my-rooms${queryString}`;
     return await apiService.get<PagedResult<Room>>(url);
   },
 
