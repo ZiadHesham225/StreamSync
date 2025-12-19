@@ -11,6 +11,7 @@ import {
   User,
   JwtClaims,
 } from '../types/index';
+import { storageUtils } from '../utils/storageUtils';
 
 export const authService = {
   decodeToken(token: string): User | null {
@@ -35,14 +36,16 @@ export const authService = {
   async login(credentials: LoginRequest): Promise<TokenResponse> {
     const response = await apiService.post<TokenResponse>('/api/auth/login', credentials);
     if (response.accessToken) {
-      localStorage.setItem('accessToken', response.accessToken);
-      localStorage.setItem('refreshToken', response.refreshToken);
-      localStorage.setItem('accessTokenExpiration', response.accessTokenExpiration);
-      localStorage.setItem('refreshTokenExpiration', response.refreshTokenExpiration);
+      storageUtils.setTokenData({
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        accessTokenExpiration: response.accessTokenExpiration,
+        refreshTokenExpiration: response.refreshTokenExpiration
+      });
       
       const user = this.decodeToken(response.accessToken);
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        storageUtils.setUser(user);
       }
     }
     return response;
@@ -69,14 +72,16 @@ export const authService = {
       const response = await apiService.post<TokenResponse>('/api/auth/refresh-token', request);
       
       if (response.accessToken) {
-        localStorage.setItem('accessToken', response.accessToken);
-        localStorage.setItem('refreshToken', response.refreshToken);
-        localStorage.setItem('accessTokenExpiration', response.accessTokenExpiration);
-        localStorage.setItem('refreshTokenExpiration', response.refreshTokenExpiration);
+        storageUtils.setTokenData({
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken,
+          accessTokenExpiration: response.accessTokenExpiration,
+          refreshTokenExpiration: response.refreshTokenExpiration
+        });
         
         const user = this.decodeToken(response.accessToken);
         if (user) {
-          localStorage.setItem('user', JSON.stringify(user));
+          storageUtils.setUser(user);
         }
       }
       
@@ -111,30 +116,21 @@ export const authService = {
   },
 
   logout(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('accessTokenExpiration');
-    localStorage.removeItem('refreshTokenExpiration');
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    storageUtils.clearAllTokens();
   },
 
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        return JSON.parse(userStr) as User;
-      } catch (error) {
-        return null;
-      }
+    const user = storageUtils.getUser<User>();
+    if (user) {
+      return user;
     }
     
     const token = this.getStoredToken();
     if (token) {
-      const user = this.decodeToken(token);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
-        return user;
+      const decodedUser = this.decodeToken(token);
+      if (decodedUser) {
+        storageUtils.setUser(decodedUser);
+        return decodedUser;
       }
     }
     
@@ -142,11 +138,11 @@ export const authService = {
   },
 
   getStoredToken(): string | null {
-    return localStorage.getItem('accessToken') || localStorage.getItem('token');
+    return storageUtils.getAccessToken();
   },
 
   getStoredRefreshToken(): string | null {
-    return localStorage.getItem('refreshToken');
+    return storageUtils.getRefreshToken();
   },
 
   isAuthenticated(): boolean {
@@ -197,7 +193,7 @@ export const authService = {
     if (token) {
       const user = this.decodeToken(token);
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        storageUtils.setUser(user);
         return user;
       }
     }

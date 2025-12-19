@@ -11,7 +11,7 @@ namespace StreamSync.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class RoomController : ControllerBase
+    public class RoomController : BaseApiController
     {
         private readonly IRoomService _roomService;
         private readonly InMemoryRoomManager _roomManager;
@@ -30,31 +30,41 @@ namespace StreamSync.Controllers
             _logger = logger;
         }
 
+        private void EnhanceRoomsWithUserCount(IEnumerable<Room> rooms)
+        {
+            foreach (var room in rooms)
+            {
+                room.UserCount = _roomManager.GetParticipantCount(room.Id);
+            }
+        }
+
+        private RoomParticipantDto MapToParticipantDto(RoomParticipant participant, string roomAdminId)
+        {
+            return new RoomParticipantDto
+            {
+                Id = participant.Id,
+                DisplayName = participant.DisplayName,
+                AvatarUrl = participant.AvatarUrl,
+                HasControl = participant.HasControl,
+                JoinedAt = participant.JoinedAt,
+                IsAdmin = participant.Id == roomAdminId
+            };
+        }
+
         [HttpGet("active")]
         public async Task<IActionResult> GetActiveRooms([FromQuery] PaginationQueryDto? pagination)
         {
             if (pagination != null)
             {
                 var pagedResult = await _roomService.GetActiveRoomsAsync(pagination);
-                
-                foreach (var room in pagedResult.Data)
-                {
-                    room.UserCount = _roomManager.GetParticipantCount(room.Id);
-                }
-                
+                EnhanceRoomsWithUserCount(pagedResult.Data);
                 return Ok(pagedResult);
             }
             else
             {
                 var rooms = await _roomService.GetActiveRoomsAsync();
-                
-                var enhancedRooms = rooms.Select(room => 
-                {
-                    room.UserCount = _roomManager.GetParticipantCount(room.Id);
-                    return room;
-                }).ToList();
-                
-                return Ok(enhancedRooms);
+                EnhanceRoomsWithUserCount(rooms);
+                return Ok(rooms);
             }
         }
 
@@ -68,15 +78,7 @@ namespace StreamSync.Controllers
             }
 
             var participants = _roomManager.GetRoomParticipants(roomId);
-            var participantDtos = participants.Select(p => new RoomParticipantDto
-            {
-                Id = p.Id,
-                DisplayName = p.DisplayName,
-                AvatarUrl = p.AvatarUrl,
-                HasControl = p.HasControl,
-                JoinedAt = p.JoinedAt,
-                IsAdmin = p.Id == room.AdminId
-            }).ToList();
+            var participantDtos = participants.Select(p => MapToParticipantDto(p, room.AdminId)).ToList();
 
             return Ok(participantDtos);
         }
@@ -108,7 +110,7 @@ namespace StreamSync.Controllers
         [HttpGet("my-rooms")]
         public async Task<IActionResult> GetUserRooms([FromQuery] PaginationQueryDto? pagination)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -117,25 +119,14 @@ namespace StreamSync.Controllers
             if (pagination != null)
             {
                 var pagedResult = await _roomService.GetUserRoomsAsync(userId, pagination);
-                
-                foreach (var room in pagedResult.Data)
-                {
-                    room.UserCount = _roomManager.GetParticipantCount(room.Id);
-                }
-                
+                EnhanceRoomsWithUserCount(pagedResult.Data);
                 return Ok(pagedResult);
             }
             else
             {
                 var rooms = await _roomService.GetUserRoomsAsync(userId);
-                
-                var enhancedRooms = rooms.Select(room => 
-                {
-                    room.UserCount = _roomManager.GetParticipantCount(room.Id);
-                    return room;
-                }).ToList();
-                
-                return Ok(enhancedRooms);
+                EnhanceRoomsWithUserCount(rooms);
+                return Ok(rooms);
             }
         }
 
@@ -152,15 +143,7 @@ namespace StreamSync.Controllers
             var adminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown";
 
             var participants = _roomManager.GetRoomParticipants(roomId);
-            var participantDtos = participants.Select(p => new RoomParticipantDto
-            {
-                Id = p.Id,
-                DisplayName = p.DisplayName,
-                AvatarUrl = p.AvatarUrl,
-                HasControl = p.HasControl,
-                JoinedAt = p.JoinedAt,
-                IsAdmin = p.Id == room.AdminId
-            }).ToList();
+            var participantDtos = participants.Select(p => MapToParticipantDto(p, room.AdminId)).ToList();
 
             var roomDetailDto = new RoomDetailDto
             {
@@ -211,7 +194,7 @@ namespace StreamSync.Controllers
         [HttpPost("create")]
         public async Task<IActionResult> CreateRoom([FromBody] RoomCreateDto roomDto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -238,7 +221,7 @@ namespace StreamSync.Controllers
         [HttpPut("update")]
         public async Task<IActionResult> UpdateRoom([FromBody] RoomUpdateDto roomDto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -257,7 +240,7 @@ namespace StreamSync.Controllers
         [HttpPut("{roomId}/sync-mode")]
         public async Task<IActionResult> UpdateSyncMode(string roomId, [FromBody] UpdateSyncModeDto request)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -282,7 +265,7 @@ namespace StreamSync.Controllers
         [HttpPost("{roomId}/end")]
         public async Task<IActionResult> EndRoom(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -301,7 +284,7 @@ namespace StreamSync.Controllers
         [HttpPost("{roomId}/transfer-control")]
         public async Task<IActionResult> TransferControl(string roomId, [FromBody] TransferControlDto transferDto)
         {
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(currentUserId))
             {
                 return Unauthorized();
@@ -328,7 +311,7 @@ namespace StreamSync.Controllers
         [HttpPost("{roomId}/take-control")]
         public async Task<IActionResult> TakeControl(string roomId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = GetAuthenticatedUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
