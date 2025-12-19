@@ -6,6 +6,7 @@ using StreamSync.BusinessLogic.Interfaces;
 using StreamSync.BusinessLogic.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Models;
+using StreamSync.Models.InMemory;
 
 namespace StreamSync.Controllers
 {
@@ -30,7 +31,7 @@ namespace StreamSync.Controllers
             _logger = logger;
         }
 
-        private void EnhanceRoomsWithUserCount(IEnumerable<Room> rooms)
+        private void EnhanceRoomsWithUserCount(IEnumerable<RoomDto> rooms)
         {
             foreach (var room in rooms)
             {
