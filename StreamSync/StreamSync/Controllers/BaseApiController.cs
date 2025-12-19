@@ -7,13 +7,7 @@ namespace StreamSync.Controllers
     {
         protected string? GetAuthenticatedUserId()
         {
-            return User.FindFirstValue(ClaimTypes.NameIdentifier) 
-                ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        }
-
-        protected IActionResult UnauthorizedUser()
-        {
-            return Unauthorized();
+            return User.FindFirstValue(ClaimTypes.NameIdentifier);
         }
     }
 }
