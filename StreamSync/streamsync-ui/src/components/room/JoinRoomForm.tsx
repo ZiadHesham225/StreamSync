@@ -3,8 +3,8 @@ import { LogIn } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import { roomService } from '../../services/roomService';
-import signalRService from '../../services/signalRService';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSignalR } from '../../contexts/SignalRContext';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,6 +21,7 @@ const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ onClose }) => {
   const [requiresPassword, setRequiresPassword] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { connectAndJoinRoom } = useSignalR();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,12 +43,8 @@ const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ onClose }) => {
         return;
       }
       
-      if (!signalRService.getIsConnected()) {
-        const token = localStorage.getItem('token');
-        await signalRService.connect(token);
-      }
-      
-      await signalRService.joinRoom(
+      // Connect and join using the context method
+      await connectAndJoinRoom(
         roomInfo.data.id,
         formData.password || undefined
       );

@@ -70,6 +70,17 @@ namespace StreamSync.Hubs
         {
             try
             {
+                // Clean up any previous room state for this connection
+                var previousRoomId = Context.Items["RoomId"] as string;
+                if (!string.IsNullOrEmpty(previousRoomId) && previousRoomId != roomId)
+                {
+                    _logger.LogInformation($"Connection {Context.ConnectionId} was in room {previousRoomId}, cleaning up before joining {roomId}");
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, previousRoomId);
+                    Context.Items.Remove("RoomId");
+                    Context.Items.Remove("ParticipantId");
+                    Context.Items.Remove("DisplayName");
+                }
+
                 var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId))
                 {
@@ -931,9 +942,19 @@ namespace StreamSync.Hubs
                 var adminParticipant = _roomManager.GetParticipant(roomId, adminId);
                 var adminDisplayName = adminParticipant?.DisplayName ?? "Admin";
 
+                // Store connection ID before removing participant
+                var kickedConnectionId = participantToKick.ConnectionId;
+
                 await Clients.User(userIdToKick).UserKicked(roomId, $"You have been kicked from the room by {adminDisplayName}");
 
                 _roomManager.RemoveParticipant(roomId, userIdToKick);
+
+                // Remove the kicked user from the SignalR group so they can rejoin cleanly
+                if (!string.IsNullOrEmpty(kickedConnectionId))
+                {
+                    await Groups.RemoveFromGroupAsync(kickedConnectionId, roomId);
+                    _logger.LogInformation($"Removed connection {kickedConnectionId} from SignalR group {roomId}");
+                }
 
                 await Clients.Group(roomId).ReceiveMessage(
                     "system",

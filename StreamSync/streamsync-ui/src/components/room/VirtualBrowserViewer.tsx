@@ -25,6 +25,11 @@ const VirtualBrowserViewer: React.FC<VirtualBrowserViewerProps> = ({
   const overlayRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<NekoClient | null>(null);
+  
+  // Track previous hasControl to detect changes
+  const prevHasControlRef = useRef<boolean>(hasControl);
+  // Track if control take is pending
+  const controlPendingRef = useRef<boolean>(false);
 
   const [nekoClient, setNekoClient] = useState<NekoClient | null>(null);
 
@@ -62,8 +67,16 @@ const VirtualBrowserViewer: React.FC<VirtualBrowserViewerProps> = ({
         setIsLoading(false);
         setIsConnected(true);
         
-        if (hasControl) {
+        // Take control if we have it when connected
+        // Use ref to get current value without adding dependency
+        if (prevHasControlRef.current) {
           client.takeControl();
+        }
+        
+        // Process any pending control request
+        if (controlPendingRef.current) {
+          client.takeControl();
+          controlPendingRef.current = false;
         }
       });
 
@@ -109,15 +122,20 @@ const VirtualBrowserViewer: React.FC<VirtualBrowserViewerProps> = ({
       }
       setNekoClient(null);
     };
+    // Only reconnect when browserUrl changes, NOT when hasControl changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [virtualBrowser.browserUrl, hasControl]);
+  }, [virtualBrowser.browserUrl]);
 
-  // Handle control changes
+  // Handle control changes without reconnecting - just take control when granted
   useEffect(() => {
-    if (nekoClient && isConnected && hasControl) {
+    // Update the ref for use in other callbacks
+    prevHasControlRef.current = hasControl;
+    
+    // Only take control when hasControl becomes true and we're connected
+    if (hasControl && nekoClient && isConnected) {
       nekoClient.takeControl();
     }
-  }, [nekoClient, isConnected, hasControl]);
+  }, [hasControl, nekoClient, isConnected]);
 
   // Calculate time remaining
   useEffect(() => {

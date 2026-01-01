@@ -6,6 +6,11 @@ class SignalRService {
     private isConnecting: boolean = false;
     private joiningRoom: boolean = false;
     private currentRoomId: string | null = null;
+    
+    // Store the current token for use in accessTokenFactory
+    private currentToken: string | null = null;
+    // Callbacks for token refresh notification
+    private tokenRefreshCallbacks: Set<() => void> = new Set();
 
     private cleanupEventListeners = () => {
         if (!this.connection) return;
@@ -75,18 +80,49 @@ class SignalRService {
 
     private _doConnect = async (token: string | null) => {
         this.onConnectionStateChange(false, true);
+        
+        // Store the initial token
+        this.currentToken = token;
 
         const hubUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5099'}/hubs/roomhub`;
 
         const connectionBuilder = new HubConnectionBuilder()
             .withUrl(hubUrl, {
-                accessTokenFactory: () => token || ""
+                // Use a factory function that always returns the latest token
+                // This ensures reconnections use the refreshed token
+                accessTokenFactory: () => this.currentToken || ""
             })
-            .withAutomaticReconnect()
+            .withAutomaticReconnect({
+                nextRetryDelayInMilliseconds: retryContext => {
+                    // Custom retry policy with exponential backoff
+                    if (retryContext.previousRetryCount < 5) {
+                        return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
+                    }
+                    return null; // Stop retrying after 5 attempts
+                }
+            })
             .configureLogging(LogLevel.Information);
 
         this.connection = connectionBuilder.build();
         this.registerClientEvents();
+        
+        // Handle reconnecting event - token will be automatically used from currentToken
+        this.connection.onreconnecting(error => {
+            this.onConnectionStateChange(false, true);
+        });
+        
+        this.connection.onreconnected(connectionId => {
+            this.onConnectionStateChange(true, false);
+            // Re-join the room if we were in one
+            if (this.currentRoomId) {
+                const roomId = this.currentRoomId;
+                this.currentRoomId = null; // Reset to allow re-join
+                this.joiningRoom = false;
+                this.joinRoom(roomId).catch(err => {
+                    console.error('Failed to rejoin room after reconnection:', err);
+                });
+            }
+        });
 
         this.connection.onclose(error => {
             this.onConnectionStateChange(false, false);
@@ -101,10 +137,45 @@ class SignalRService {
         }
     }
 
+    /**
+     * Update the access token without disconnecting.
+     * The new token will be used for:
+     * 1. Any automatic reconnections triggered by SignalR
+     * 2. The next manual reconnection if needed
+     * 
+     * Note: SignalR doesn't support changing the token on an active connection,
+     * but since we use accessTokenFactory with this.currentToken, the new token
+     * will be automatically used when SignalR needs to reconnect.
+     */
+    public updateAccessToken = (newToken: string) => {
+        this.currentToken = newToken;
+        
+        // Notify any listeners that the token has been updated
+        this.tokenRefreshCallbacks.forEach(callback => callback());
+    }
+    
+    /**
+     * Register a callback to be notified when the token is updated
+     */
+    public onTokenRefresh = (callback: () => void): (() => void) => {
+        this.tokenRefreshCallbacks.add(callback);
+        return () => {
+            this.tokenRefreshCallbacks.delete(callback);
+        };
+    }
+    
+    /**
+     * Get the current token (useful for debugging or manual operations)
+     */
+    public getCurrentToken = (): string | null => {
+        return this.currentToken;
+    }
+
     public disconnect = async () => {
         this.connectPromise = null;
         this.joiningRoom = false;
         this.currentRoomId = null;
+        this.currentToken = null;
         if (this.connection) {
             try {
                 this.removeEventListeners();

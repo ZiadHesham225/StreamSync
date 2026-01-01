@@ -7,7 +7,7 @@ namespace StreamSync.BusinessLogic.Services.InMemory
     {
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, RoomParticipant>> _roomParticipants = new();
         private readonly ConcurrentDictionary<string, Queue<ChatMessage>> _roomMessages = new();
-        private const int MAX_MESSAGES_PER_ROOM = 50;
+        private const int MAX_MESSAGES_VISIBLE_PER_ROOM = 50;
 
         #region Participant Management
         
@@ -140,7 +140,7 @@ namespace StreamSync.BusinessLogic.Services.InMemory
             {
                 messages.Enqueue(message);
                 
-                while (messages.Count > MAX_MESSAGES_PER_ROOM)
+                while (messages.Count > MAX_MESSAGES_VISIBLE_PER_ROOM)
                 {
                     messages.Dequeue();
                 }
