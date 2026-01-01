@@ -13,6 +13,9 @@ obj/
 .vscode/
 *.code-workspace
 
+# Visual Studio
+.vs/
+
 # Rider
 .idea/
 
