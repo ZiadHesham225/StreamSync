@@ -6,6 +6,7 @@ import Button from '../common/Button';
 import Input from '../common/Input';
 import Pagination from '../common/Pagination';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSignalR } from '../../contexts/SignalRContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import signalRService from '../../services/signalRService';
@@ -52,6 +53,7 @@ const RoomList: React.FC = () => {
     error: null
   });
   const { isAuthenticated, user } = useAuth();
+  const { connectAndJoinRoom, disconnectFromRoom } = useSignalR();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -281,11 +283,8 @@ const RoomList: React.FC = () => {
     setPasswordModal(prev => ({ ...prev, isValidating: true, error: null }));
 
     try {
-      if (!signalRService.getIsConnected()) {
-        const token = localStorage.getItem('token');
-        await signalRService.connect(token);
-      }
-      await signalRService.joinRoom(passwordModal.roomId, passwordModal.password);
+      // Connect and join with password using the context method
+      await connectAndJoinRoom(passwordModal.roomId, passwordModal.password);
       
       const passwordData = {
         password: passwordModal.password,
@@ -311,9 +310,12 @@ const RoomList: React.FC = () => {
         error: errorMessage
       }));
       sessionStorage.removeItem(`room_password_${passwordModal.roomId}`);
-      try {
-        await signalRService.disconnect();
-      } catch (disconnectError) {
+      // Disconnect on failure
+      if (passwordModal.roomId) {
+        try {
+          await disconnectFromRoom(passwordModal.roomId);
+        } catch (disconnectError) {
+        }
       }
     }
   };

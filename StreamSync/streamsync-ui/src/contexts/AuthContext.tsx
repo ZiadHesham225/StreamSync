@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { authService } from '../services/authService';
+import signalRService from '../services/signalRService';
 import { User, LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest } from '../types/index';
 
 interface AuthContextType {
@@ -41,6 +42,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const user = authService.getStoredUser();
         setUser(user);
         setToken(response.accessToken);
+        
+        // Update SignalR with the new token without disconnecting
+        // This ensures the connection stays alive and uses the new token for any reconnections
+        signalRService.updateAccessToken(response.accessToken);
+        
         return true;
       }
       return false;

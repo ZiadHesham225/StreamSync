@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Copy, Check, Settings } from 'lucide-react';
 import { RoomDetail, ChatMessage, RoomParticipant, PlaybackState, VirtualBrowser, VirtualBrowserQueue} from '../types/index';
 import { useAuth } from '../contexts/AuthContext';
+import { useSignalR } from '../contexts/SignalRContext';
 import { apiService } from '../services/api';
 import { authService } from '../services/authService';
 import virtualBrowserService from '../services/virtualBrowserService';
@@ -25,6 +26,7 @@ const RoomPage: React.FC = () => {
     const { id: roomId } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user, token, isAuthenticated, isLoading: authLoading, refreshToken } = useAuth();
+    const { connectAndJoinRoom, disconnectFromRoom } = useSignalR();
     
     const [roomData, setRoomData] = useState<RoomDetail | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -123,13 +125,9 @@ const RoomPage: React.FC = () => {
                 } catch (error) {
                     }
 
-                if (!signalRService.getIsConnected()) {
-                    const currentToken = token || authService.getStoredToken();
-                    await signalRService.connect(currentToken);
-                }
-
+                // Get password from session storage if available
                 const storedPasswordData = sessionStorage.getItem(`room_password_${roomId}`);
-                let password = null;
+                let password: string | undefined = undefined;
                 
                 if (storedPasswordData) {
                     try {
@@ -145,12 +143,9 @@ const RoomPage: React.FC = () => {
                     }
                 }
                 
+                // Connect and join room using the context method
                 try {
-                    if (password) {
-                        await signalRService.joinRoom(roomId, password);
-                    } else {
-                        await signalRService.joinRoom(roomId);
-                    }
+                    await connectAndJoinRoom(roomId, password);
                 } catch (joinError: any) {
                     // Check if this is an authorization error
                     if (joinError.message?.includes('unauthorized') || joinError.message?.includes('Unauthorized')) {
@@ -159,17 +154,8 @@ const RoomPage: React.FC = () => {
                             const refreshSuccess = await refreshToken();
                             
                             if (refreshSuccess) {
-                                // Get the fresh token and retry SignalR connection
-                                const freshToken = authService.getStoredToken();
-                                await signalRService.disconnect();
-                                await signalRService.connect(freshToken);
-                                
-                                // Retry joining the room
-                                if (password) {
-                                    await signalRService.joinRoom(roomId, password);
-                                } else {
-                                    await signalRService.joinRoom(roomId);
-                                }
+                                // Retry connecting and joining with fresh token
+                                await connectAndJoinRoom(roomId, password);
                                 toast.success('Successfully reconnected to room');
                             } else {
                                 throw new Error('Token refresh failed');
@@ -184,10 +170,11 @@ const RoomPage: React.FC = () => {
                         toast.error('This private room requires a password. Please join from the room list.');
                         navigate('/dashboard');
                         return;
+                    } else {
+                        console.error('Error joining room:', joinError);
+                        toast.error('Failed to join room. Please try again.');
                     }
-                    
-                    }
-                
+                }
                 
                 try {
                     const chatHistory = await apiService.get<ChatMessage[]>(`/api/room/${roomId}/messages`);
@@ -219,7 +206,7 @@ const RoomPage: React.FC = () => {
         if (roomId && user && isAuthenticated && !authLoading) {
             initializeRoom();
         }
-    }, [roomId, user, isAuthenticated, authLoading, navigate, refreshToken, token]);
+    }, [roomId, user, isAuthenticated, authLoading, navigate, refreshToken, connectAndJoinRoom]);
 
     // Set up SignalR event handlers
     useEffect(() => {
@@ -362,11 +349,10 @@ const RoomPage: React.FC = () => {
             }
         };
 
-        signalRService.onUserKicked = (roomId: string, reason: string) => {
+        signalRService.onUserKicked = async (kickedRoomId: string, reason: string) => {
             toast.error(reason);
-            if (roomData) {
-                signalRService.leaveRoom(roomData.id);
-            }
+            // Disconnect completely when kicked
+            await disconnectFromRoom(kickedRoomId);
             navigate('/');
         };
 
@@ -535,9 +521,9 @@ const RoomPage: React.FC = () => {
         };
     }, [roomId]);
 
-    const handleNavigateAway = () => {
+    const handleNavigateAway = async () => {
         if (roomId) {
-            signalRService.leaveRoom(roomId);
+            await disconnectFromRoom(roomId);
         }
         navigate('/dashboard');
     };
@@ -552,9 +538,9 @@ const RoomPage: React.FC = () => {
         }
     };
 
-    const handleLeaveRoom = () => {
+    const handleLeaveRoom = async () => {
         if (roomId) {
-            signalRService.leaveRoom(roomId);
+            await disconnectFromRoom(roomId);
         }
         navigate('/dashboard');
     };
