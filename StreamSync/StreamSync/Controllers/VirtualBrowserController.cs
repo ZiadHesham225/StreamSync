@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 
 namespace StreamSync.Controllers
@@ -185,70 +185,6 @@ namespace StreamSync.Controllers
             }
 
             return BadRequest("Failed to cancel queue");
-        }
-
-        [Authorize]
-        [HttpPost("navigate")]
-        public async Task<IActionResult> NavigateVirtualBrowser([FromBody] VirtualBrowserNavigateDto request)
-        {
-            var userId = GetAuthenticatedUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            var browser = await _virtualBrowserService.GetRoomVirtualBrowserAsync(request.VirtualBrowserId);
-            if (browser == null)
-            {
-                return NotFound("Virtual browser not found");
-            }
-
-            var canControl = await _roomService.CanUserControlRoomAsync(browser.RoomId, userId);
-            if (!canControl)
-            {
-                return Forbid("Only room admins or controllers can navigate virtual browsers");
-            }
-
-            var result = await _virtualBrowserService.NavigateVirtualBrowserAsync(request.VirtualBrowserId, request.Url);
-            
-            if (result)
-            {
-                return Ok(new { message = "Navigation successful" });
-            }
-
-            return BadRequest("Failed to navigate virtual browser");
-        }
-
-        [Authorize]
-        [HttpPost("control")]
-        public async Task<IActionResult> ControlVirtualBrowser([FromBody] VirtualBrowserControlDto request)
-        {
-            var userId = GetAuthenticatedUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            var browser = await _virtualBrowserService.GetRoomVirtualBrowserAsync(request.VirtualBrowserId);
-            if (browser == null)
-            {
-                return NotFound("Virtual browser not found");
-            }
-
-            var isAdmin = await _roomService.IsUserAdminAsync(browser.RoomId, userId);
-            if (!isAdmin)
-            {
-                return Forbid("Only room admins can control virtual browsers");
-            }
-
-            var result = await _virtualBrowserService.ControlVirtualBrowserAsync(request.VirtualBrowserId, request);
-            
-            if (result)
-            {
-                return Ok(new { message = "Control action successful" });
-            }
-
-            return BadRequest("Failed to execute control action");
         }
 
         [Authorize]

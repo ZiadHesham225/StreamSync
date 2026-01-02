@@ -1,19 +1,29 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Models;
 using StreamSync.Models.InMemory;
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.InMemory;
 
 namespace StreamSync.Hubs
 {
+    /// <summary>
+    /// SignalR hub for real-time room communication.
+    /// Uses dedicated services for specific responsibilities (SRP):
+    /// - IRoomParticipantService: Participant management and notifications
+    /// - IChatService: Chat message handling
+    /// - IPlaybackService: Video playback synchronization
+    /// </summary>
     public class RoomHub : Hub<IRoomClient>
     {
         private readonly IRoomService _roomService;
+        private readonly IRoomParticipantService _participantService;
+        private readonly IChatService _chatService;
+        private readonly IPlaybackService _playbackService;
         private readonly InMemoryRoomManager _roomManager;
         private readonly ILogger<RoomHub> _logger;
         private readonly UserManager<ApplicationUser> _userManager;
@@ -24,12 +34,18 @@ namespace StreamSync.Hubs
 
         public RoomHub(
             IRoomService roomService,
+            IRoomParticipantService participantService,
+            IChatService chatService,
+            IPlaybackService playbackService,
             InMemoryRoomManager roomManager,
             ILogger<RoomHub> logger,
             UserManager<ApplicationUser> userManager,
             IServiceProvider serviceProvider)
         {
             _roomService = roomService;
+            _participantService = participantService;
+            _chatService = chatService;
+            _playbackService = playbackService;
             _roomManager = roomManager;
             _logger = logger;
             _userManager = userManager;
@@ -136,18 +152,8 @@ namespace StreamSync.Hubs
                     
                     _roomManager.EnsureControlConsistency(roomId);
                     
-                    var updatedParticipants = _roomManager.GetRoomParticipants(roomId);
-                    var updatedParticipantDtos = updatedParticipants.Select(p => new RoomParticipantDto
-                    {
-                        Id = p.Id,
-                        DisplayName = p.DisplayName,
-                        AvatarUrl = p.AvatarUrl,
-                        HasControl = p.HasControl,
-                        JoinedAt = p.JoinedAt,
-                        IsAdmin = room != null && p.Id == room.AdminId
-                    }).ToList();
-
-                    await Clients.Group(roomId).ReceiveRoomParticipants(updatedParticipantDtos);
+                    // Use participantService to broadcast updated participant list
+                    await _participantService.BroadcastParticipantsAsync(roomId);
                     
                     if (existingParticipant.HasControl)
                     {
@@ -183,7 +189,7 @@ namespace StreamSync.Hubs
                         shouldHaveControl = true;
                         participant.HasControl = true;
                         
-                        await Clients.Group(roomId).ControlTransferred(participantId, user.UserName ?? "Unknown User");
+                        await _participantService.NotifyControlTransferredAsync(roomId, participantId, user.UserName ?? "Unknown User");
                     }
                 }
 
@@ -200,58 +206,22 @@ namespace StreamSync.Hubs
                 Context.Items["ParticipantId"] = participantId;
                 Context.Items["DisplayName"] = user.UserName;
 
+                // Notify caller and others about join
                 await Clients.Caller.RoomJoined(roomId, participantId, user.UserName ?? "Unknown User", user.AvatarUrl ?? "");
-                
                 await Clients.OthersInGroup(roomId).RoomJoined(roomId, participantId, user.UserName ?? "Unknown User", user.AvatarUrl ?? "");
                 await Clients.OthersInGroup(roomId).ParticipantJoinedNotification(user.UserName ?? "Unknown User");
 
-                var allParticipants = _roomManager.GetRoomParticipants(roomId);
-                _logger.LogInformation($"Sending participant list to room {roomId}: {allParticipants.Count} participants");
-                
-                var allParticipantDtos = allParticipants.Select(p => new RoomParticipantDto
-                {
-                    Id = p.Id,
-                    DisplayName = p.DisplayName,
-                    AvatarUrl = p.AvatarUrl,
-                    HasControl = p.HasControl,
-                    JoinedAt = p.JoinedAt,
-                    IsAdmin = p.Id == room.AdminId
-                }).ToList();
+                // Broadcast updated participant list to all in room
+                await _participantService.BroadcastParticipantsAsync(roomId);
 
-                foreach (var dto in allParticipantDtos)
-                {
-                    _logger.LogInformation($"  - {dto.DisplayName} (ID: {dto.Id}, HasControl: {dto.HasControl})");
-                }
-
-                await Clients.Group(roomId).ReceiveRoomParticipants(allParticipantDtos);
-
+                // Send playback state to caller
                 await Clients.Caller.ForceSyncPlayback(room.CurrentPosition, room.IsPlaying);
                 
-                var participants = _roomManager.GetRoomParticipants(roomId);
-                var participantDtos = participants.Select(p => new RoomParticipantDto
-                {
-                    Id = p.Id,
-                    DisplayName = p.DisplayName,
-                    AvatarUrl = p.AvatarUrl,
-                    HasControl = p.HasControl,
-                    JoinedAt = p.JoinedAt,
-                    IsAdmin = p.Id == room.AdminId
-                }).ToList();
-
-                await Clients.Caller.ReceiveRoomParticipants(participantDtos);
+                // Send participant list to caller
+                await _participantService.SendParticipantsToClientAsync(Context.ConnectionId, roomId);
                 
-                var chatHistory = _roomManager.GetRoomMessages(roomId);
-                var messageDtos = chatHistory.Select(m => new ChatMessageDto
-                {
-                    Id = m.Id,
-                    SenderId = m.SenderId,
-                    SenderName = m.SenderName,
-                    AvatarUrl = m.AvatarUrl,
-                    Content = m.Content,
-                    SentAt = m.SentAt
-                }).ToList();
-
-                await Clients.Caller.ReceiveChatHistory(messageDtos);
+                // Send chat history to caller
+                await _chatService.SendChatHistoryToClientAsync(Context.ConnectionId, roomId);
 
                 _logger.LogInformation($"User {participantId} joined room {roomId}");
             }
@@ -306,19 +276,7 @@ namespace StreamSync.Hubs
 
                 if (_roomManager.GetParticipantCount(roomId) > 0)
                 {
-                    var remainingParticipants = _roomManager.GetRoomParticipants(roomId);
-                    var room = await _roomService.GetRoomByIdAsync(roomId);
-                    var remainingParticipantDtos = remainingParticipants.Select(p => new RoomParticipantDto
-                    {
-                        Id = p.Id,
-                        DisplayName = p.DisplayName,
-                        AvatarUrl = p.AvatarUrl,
-                        HasControl = p.HasControl,
-                        JoinedAt = p.JoinedAt,
-                        IsAdmin = room != null && p.Id == room.AdminId
-                    }).ToList();
-
-                    await Clients.Group(roomId).ReceiveRoomParticipants(remainingParticipantDtos);
+                    await _participantService.BroadcastParticipantsAsync(roomId);
                 }
 
                 Context.Items.Remove("RoomId");
@@ -366,12 +324,8 @@ namespace StreamSync.Hubs
                     var newController = _roomManager.GetController(roomId);
                     if (newController != null)
                     {
-                        var hubContext = _serviceProvider.GetService<IHubContext<RoomHub, IRoomClient>>();
-                        if (hubContext != null)
-                        {
-                            await hubContext.Clients.Group(roomId).ControlTransferred(newController.Id, newController.DisplayName);
-                            _logger.LogInformation($"Control transferred to {newController.DisplayName} ({newController.Id}) in room {roomId}");
-                        }
+                        await _participantService.NotifyControlTransferredAsync(roomId, newController.Id, newController.DisplayName);
+                        _logger.LogInformation($"Control transferred to {newController.DisplayName} ({newController.Id}) in room {roomId}");
                     }
                     else
                     {
@@ -379,28 +333,11 @@ namespace StreamSync.Hubs
                     }
                 }
 
-                var hubContextForNotifications = _serviceProvider.GetService<IHubContext<RoomHub, IRoomClient>>();
-                if (hubContextForNotifications != null)
+                await _participantService.NotifyParticipantLeftAsync(roomId, participantId, displayName);
+
+                if (_roomManager.GetParticipantCount(roomId) > 0)
                 {
-                    await hubContextForNotifications.Clients.Group(roomId).RoomLeft(roomId, participantId, displayName);
-                    await hubContextForNotifications.Clients.Group(roomId).ParticipantLeftNotification(displayName);
-
-                    if (_roomManager.GetParticipantCount(roomId) > 0)
-                    {
-                        var remainingParticipants = _roomManager.GetRoomParticipants(roomId);
-                        var room = await _roomService.GetRoomByIdAsync(roomId);
-                        var remainingParticipantDtos = remainingParticipants.Select(p => new RoomParticipantDto
-                        {
-                            Id = p.Id,
-                            DisplayName = p.DisplayName,
-                            AvatarUrl = p.AvatarUrl,
-                            HasControl = p.HasControl,
-                            JoinedAt = p.JoinedAt,
-                            IsAdmin = room != null && p.Id == room.AdminId
-                        }).ToList();
-
-                        await hubContextForNotifications.Clients.Group(roomId).ReceiveRoomParticipants(remainingParticipantDtos);
-                    }
+                    await _participantService.BroadcastParticipantsAsync(roomId);
                 }
 
                 if (_roomManager.GetParticipantCount(roomId) == 0)
@@ -421,20 +358,7 @@ namespace StreamSync.Hubs
         {
             try
             {
-                var participants = _roomManager.GetRoomParticipants(roomId);
-                var room = await _roomService.GetRoomByIdAsync(roomId);
-                
-                var participantDtos = participants.Select(p => new RoomParticipantDto
-                {
-                    Id = p.Id,
-                    DisplayName = p.DisplayName,
-                    AvatarUrl = p.AvatarUrl,
-                    HasControl = p.HasControl,
-                    JoinedAt = p.JoinedAt,
-                    IsAdmin = room != null && p.Id == room.AdminId
-                }).ToList();
-
-                await Clients.Caller.ReceiveRoomParticipants(participantDtos);
+                await _participantService.SendParticipantsToClientAsync(Context.ConnectionId, roomId);
             }
             catch (Exception ex)
             {
@@ -827,21 +751,9 @@ namespace StreamSync.Hubs
                 }
 
                 _roomManager.SetController(roomId, newControllerId);
-                await Clients.Group(roomId).ControlTransferred(newControllerId, newController.DisplayName);
-
-                var allParticipants = _roomManager.GetRoomParticipants(roomId);
-                var room = await _roomService.GetRoomByIdAsync(roomId);
-                var allParticipantDtos = allParticipants.Select(p => new RoomParticipantDto
-                {
-                    Id = p.Id,
-                    DisplayName = p.DisplayName,
-                    AvatarUrl = p.AvatarUrl,
-                    HasControl = p.HasControl,
-                    JoinedAt = p.JoinedAt,
-                    IsAdmin = room != null && p.Id == room.AdminId
-                }).ToList();
-
-                await Clients.Group(roomId).ReceiveRoomParticipants(allParticipantDtos);
+                
+                await _participantService.NotifyControlTransferredAsync(roomId, newControllerId, newController.DisplayName);
+                await _participantService.BroadcastParticipantsAsync(roomId);
 
                 _logger.LogInformation($"Control transferred in room {roomId} from {currentUserId} to {newControllerId}");
             }
@@ -880,18 +792,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var chatMessage = new ChatMessage(participantId, participant.DisplayName, participant.AvatarUrl, message);
-                _roomManager.AddMessage(roomId, chatMessage);
-
-                await Clients.Group(roomId).ReceiveMessage(
-                    participantId,
-                    participant.DisplayName,
-                    participant.AvatarUrl,
-                    message,
-                    DateTime.UtcNow,
-                    false);
-
-                _logger.LogDebug($"Message sent in room {roomId} by {participantId} ({participant.DisplayName}): {message}");
+                await _chatService.SendMessageAsync(roomId, participantId, participant.DisplayName, participant.AvatarUrl, message);
             }
             catch (Exception ex)
             {
@@ -956,26 +857,9 @@ namespace StreamSync.Hubs
                     _logger.LogInformation($"Removed connection {kickedConnectionId} from SignalR group {roomId}");
                 }
 
-                await Clients.Group(roomId).ReceiveMessage(
-                    "system",
-                    "System",
-                    null,
-                    $"{participantToKick.DisplayName} was kicked from the room by {adminDisplayName}",
-                    DateTime.UtcNow,
-                    true);
+                await _chatService.SendSystemMessageAsync(roomId, $"{participantToKick.DisplayName} was kicked from the room by {adminDisplayName}");
 
-                var updatedParticipants = _roomManager.GetRoomParticipants(roomId)
-                    .Select(p => new RoomParticipantDto
-                    {
-                        Id = p.Id,
-                        DisplayName = p.DisplayName,
-                        AvatarUrl = p.AvatarUrl,
-                        IsAdmin = p.Id == room.AdminId,
-                        HasControl = p.HasControl,
-                        JoinedAt = p.JoinedAt
-                    });
-                
-                await Clients.Group(roomId).ReceiveRoomParticipants(updatedParticipants);
+                await _participantService.BroadcastParticipantsAsync(roomId);
 
                 _logger.LogInformation($"User {userIdToKick} ({participantToKick.DisplayName}) was kicked from room {roomId} by admin {adminId} ({adminDisplayName})");
             }
@@ -1183,108 +1067,6 @@ namespace StreamSync.Hubs
             {
                 _logger.LogError(ex, "Error declining virtual browser notification for room {RoomId}", roomId);
                 await Clients.Caller.Error("An error occurred while declining virtual browser notification.");
-            }
-        }
-
-        [Authorize]
-        public async Task NavigateVirtualBrowser(string virtualBrowserId, string url)
-        {
-            try
-            {
-                var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId))
-                {
-                    await Clients.Caller.Error("User not found.");
-                    return;
-                }
-
-                var virtualBrowserService = Context.GetHttpContext()?.RequestServices.GetRequiredService<IVirtualBrowserService>();
-                if (virtualBrowserService == null)
-                {
-                    await Clients.Caller.Error("Virtual browser service not available.");
-                    return;
-                }
-
-                var browser = await virtualBrowserService.GetVirtualBrowserAsync(virtualBrowserId);
-                if (browser == null)
-                {
-                    await Clients.Caller.Error("Virtual browser not found.");
-                    return;
-                }
-
-                var canControl = await _roomService.CanUserControlRoomAsync(browser.RoomId, userId);
-                if (!canControl)
-                {
-                    await Clients.Caller.Error("Only room admins or controllers can navigate virtual browsers.");
-                    return;
-                }
-
-                var result = await virtualBrowserService.NavigateVirtualBrowserAsync(virtualBrowserId, url);
-                
-                if (result)
-                {
-                    await Clients.Group(browser.RoomId).VirtualBrowserNavigated(url);
-                }
-                else
-                {
-                    await Clients.Caller.Error("Failed to navigate virtual browser.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error navigating virtual browser {VirtualBrowserId} to {Url}", virtualBrowserId, url);
-                await Clients.Caller.Error("An error occurred while navigating virtual browser.");
-            }
-        }
-
-        [Authorize]
-        public async Task ControlVirtualBrowser(string virtualBrowserId, VirtualBrowserControlDto control)
-        {
-            try
-            {
-                var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId))
-                {
-                    await Clients.Caller.Error("User not found.");
-                    return;
-                }
-
-                var virtualBrowserService = Context.GetHttpContext()?.RequestServices.GetRequiredService<IVirtualBrowserService>();
-                if (virtualBrowserService == null)
-                {
-                    await Clients.Caller.Error("Virtual browser service not available.");
-                    return;
-                }
-
-                var browser = await virtualBrowserService.GetVirtualBrowserAsync(virtualBrowserId);
-                if (browser == null)
-                {
-                    await Clients.Caller.Error("Virtual browser not found.");
-                    return;
-                }
-
-                var isAdmin = await _roomService.IsUserAdminAsync(browser.RoomId, userId);
-                if (!isAdmin)
-                {
-                    await Clients.Caller.Error("Only room admins can control virtual browsers.");
-                    return;
-                }
-
-                var result = await virtualBrowserService.ControlVirtualBrowserAsync(virtualBrowserId, control);
-                
-                if (result)
-                {
-                    await Clients.Group(browser.RoomId).VirtualBrowserControlUpdate(control);
-                }
-                else
-                {
-                    await Clients.Caller.Error("Failed to execute virtual browser control action.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error controlling virtual browser {VirtualBrowserId}", virtualBrowserId);
-                await Clients.Caller.Error("An error occurred while controlling virtual browser.");
             }
         }
 

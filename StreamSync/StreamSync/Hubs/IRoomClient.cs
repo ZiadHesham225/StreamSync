@@ -1,4 +1,4 @@
-﻿using StreamSync.DTOs;
+using StreamSync.DTOs;
 
 namespace StreamSync.Hubs
 {
@@ -28,8 +28,6 @@ namespace StreamSync.Hubs
         Task VirtualBrowserQueueCancelled();
         Task VirtualBrowserAvailable(VirtualBrowserQueueDto queueStatus);
         Task VirtualBrowserQueueNotificationExpired();
-        Task VirtualBrowserNavigated(string url);
-        Task VirtualBrowserControlUpdate(VirtualBrowserControlDto control);
         
         // Room settings
         Task SyncModeChanged(string syncMode);

@@ -1,10 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services;
 using StreamSync.DTOs;
 
 namespace StreamSync.Controllers

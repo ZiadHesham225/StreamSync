@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StreamSync.DTOs;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 
 namespace StreamSync.Controllers
 {

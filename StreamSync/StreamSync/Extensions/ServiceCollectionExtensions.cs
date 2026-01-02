@@ -46,7 +46,7 @@ namespace StreamSync.Extensions
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = configuration["JWT:ValidIssuer"],
                     ValidAudience = configuration["JWT:ValidAudience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]))
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT:Secret configuration is missing")))
                 };
                 options.Events = new JwtBearerEvents
                 {

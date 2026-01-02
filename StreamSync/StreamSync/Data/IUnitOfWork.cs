@@ -1,4 +1,4 @@
-﻿using StreamSync.DataAccess.Interfaces;
+using StreamSync.DataAccess.Interfaces;
 using StreamSync.Models;
 
 namespace StreamSync.Data

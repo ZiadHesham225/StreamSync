@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Models;
 using StreamSync.Models.InMemory;
