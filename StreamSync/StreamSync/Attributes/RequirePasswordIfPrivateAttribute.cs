@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using StreamSync.DTOs;
 
 namespace StreamSync.Validations
@@ -6,7 +6,7 @@ namespace StreamSync.Validations
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property, AllowMultiple = false)]
     public class RequirePasswordIfPrivateAttribute : ValidationAttribute
     {
-        protected override ValidationResult IsValid(object value, ValidationContext validationContext)
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
             var instance = validationContext.ObjectInstance;
             if (instance is IPrivateRoomDto roomDto)

@@ -1,4 +1,4 @@
-﻿using StreamSync.Validations;
+using StreamSync.Validations;
 
 namespace StreamSync.DTOs
 {

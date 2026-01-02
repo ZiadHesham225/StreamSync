@@ -1,4 +1,4 @@
-﻿namespace StreamSync.DTOs
+namespace StreamSync.DTOs
 {
     public interface IPrivateRoomDto
     {

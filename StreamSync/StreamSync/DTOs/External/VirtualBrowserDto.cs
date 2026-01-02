@@ -28,19 +28,6 @@ namespace StreamSync.DTOs
         public required string RoomId { get; set; }
     }
 
-    public class VirtualBrowserControlDto
-    {
-        public required string VirtualBrowserId { get; set; }
-        public string Action { get; set; } = string.Empty; // "mouseMove", "click", "scroll", "keypress", etc.
-        public object? Data { get; set; } // Action-specific data (coordinates, key, etc.)
-    }
-
-    public class VirtualBrowserNavigateDto
-    {
-        public required string VirtualBrowserId { get; set; }
-        public required string Url { get; set; }
-    }
-
     public class VirtualBrowserQueueDto
     {
         public string Id { get; set; } = string.Empty;

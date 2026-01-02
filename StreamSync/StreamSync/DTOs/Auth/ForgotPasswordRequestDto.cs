@@ -1,10 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace StreamSync.DTOs
 {
     public class ForgotPasswordRequestDto
     {
         [EmailAddress]
-        public string Email { get; set; }
+        public required string Email { get; set; }
     }
 }
