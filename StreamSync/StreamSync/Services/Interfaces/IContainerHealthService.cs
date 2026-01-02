@@ -1,4 +1,4 @@
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     /// <summary>
     /// Interface for container health checking service
@@ -14,10 +14,5 @@ namespace StreamSync.BusinessLogic.Interfaces
         /// Check if a container is healthy using Docker inspect
         /// </summary>
         Task<bool> IsContainerHealthyAsync(string containerId);
-
-        /// <summary>
-        /// Generate a random password for container authentication
-        /// </summary>
-        string GenerateRandomPassword(int length = 12);
     }
 }

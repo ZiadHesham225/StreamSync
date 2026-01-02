@@ -1,6 +1,6 @@
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     /// <summary>
     /// Interface for container configuration service

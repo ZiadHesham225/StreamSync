@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using StreamSync.Models.InMemory;
 
-namespace StreamSync.BusinessLogic.Services.InMemory
+namespace StreamSync.Services.InMemory
 {
     public class InMemoryRoomManager
     {

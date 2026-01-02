@@ -1,12 +1,12 @@
 using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
 using System.Text.RegularExpressions;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using System.Xml;
 using System.Text.Json;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class YouTubeService : IYouTubeService
     {

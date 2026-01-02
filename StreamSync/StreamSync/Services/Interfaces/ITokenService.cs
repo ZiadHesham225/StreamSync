@@ -1,7 +1,7 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using StreamSync.DTOs;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     public interface ITokenService
     {

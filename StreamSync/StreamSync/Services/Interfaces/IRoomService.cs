@@ -1,13 +1,13 @@
-﻿using StreamSync.DTOs;
+using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     public interface IRoomService
     {
-        Task<Room> CreateRoomAsync(RoomCreateDto roomDto, string userId);
-        Task<Room> GetRoomByIdAsync(string roomId);
-        Task<Room> GetRoomByInviteCodeAsync(string inviteCode);
+        Task<Room?> CreateRoomAsync(RoomCreateDto roomDto, string userId);
+        Task<Room?> GetRoomByIdAsync(string roomId);
+        Task<Room?> GetRoomByInviteCodeAsync(string inviteCode);
         Task<IEnumerable<RoomDto>> GetActiveRoomsAsync();
         Task<PagedResultDto<RoomDto>> GetActiveRoomsAsync(PaginationQueryDto pagination);
         Task<IEnumerable<RoomDto>> GetUserRoomsAsync(string userId);
@@ -17,7 +17,7 @@ namespace StreamSync.BusinessLogic.Interfaces
         Task<bool> EndRoomAsync(string roomId, string userId);
         Task<bool> UpdatePlaybackStateAsync(string roomId, string userId, double position, bool isPlaying);
         Task<bool> ValidateRoomPasswordAsync(string roomId, string? password);
-        Task<string> GenerateInviteLink(string roomId);
+        Task<string?> GenerateInviteLink(string roomId);
         Task<bool> IsUserAdminAsync(string roomId, string userId);
         Task<bool> CanUserControlRoomAsync(string roomId, string userId);
         Task<bool> UpdateSyncModeAsync(string roomId, string syncMode);

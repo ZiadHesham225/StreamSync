@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Identity;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class UserService : IUserService
     {

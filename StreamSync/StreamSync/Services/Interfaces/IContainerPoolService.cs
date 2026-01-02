@@ -1,7 +1,7 @@
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services;
 using StreamSync.Common;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     public interface IContainerPoolService
     {

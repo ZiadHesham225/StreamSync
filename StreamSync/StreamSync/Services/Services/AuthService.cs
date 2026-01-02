@@ -1,14 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Web;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class AuthService : IAuthService
     {
@@ -32,12 +32,12 @@ namespace StreamSync.BusinessLogic.Services
 
                 if (!string.IsNullOrEmpty(token))
                 {
-                    var frontendUrl = _configuration["Frontend:ResetPasswordUrl"] ?? _configuration["JWT:ValidIssuer"];
+                    var frontendUrl = _configuration["Frontend:ResetPasswordUrl"] ?? _configuration["JWT:ValidIssuer"] ?? string.Empty;
                     var link = GeneratePasswordResetLink(frontendUrl, token, model.Email);
 
                     if (!string.IsNullOrEmpty(link))
                     {
-                        await _emailService.SendPasswordResetEmailAsync(model.Email, user.UserName, link);
+                        await _emailService.SendPasswordResetEmailAsync(model.Email, user.UserName ?? "User", link);
                     }
                 }
             }
@@ -146,7 +146,7 @@ namespace StreamSync.BusinessLogic.Services
             var authClaims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
-                new Claim(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
+                new Claim(ClaimTypes.NameIdentifier, user.Id ?? throw new InvalidOperationException("User ID cannot be null")),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

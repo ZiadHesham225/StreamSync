@@ -1,14 +1,14 @@
-﻿using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.Data;
 using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class JwtTokenService : ITokenService
     {
@@ -22,7 +22,7 @@ namespace StreamSync.BusinessLogic.Services
         }
         public string GenerateAccessToken(IEnumerable<Claim> claims)
         {
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT:Secret configuration is missing")));
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
@@ -51,7 +51,7 @@ namespace StreamSync.BusinessLogic.Services
                 ValidateAudience = false,
                 ValidateIssuer = false,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT:Secret configuration is missing"))),
                 ValidateLifetime = false
             };
 
@@ -74,7 +74,7 @@ namespace StreamSync.BusinessLogic.Services
                 throw new SecurityTokenException("Invalid access token");
             }
 
-            string userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            string? userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
                 throw new SecurityTokenException("Invalid access token");

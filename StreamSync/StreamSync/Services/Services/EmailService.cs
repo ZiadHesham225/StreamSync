@@ -1,8 +1,8 @@
-﻿using MimeKit;
+using MimeKit;
 using MailKit.Security;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class EmailService : IEmailService
     {
@@ -38,7 +38,7 @@ namespace StreamSync.BusinessLogic.Services
             {
                 await client.ConnectAsync(
                     _config["EmailSettings:SmtpServer"],
-                    int.Parse(_config["EmailSettings:SmtpPort"]),
+                    int.Parse(_config["EmailSettings:SmtpPort"] ?? "587"),
                     SecureSocketOptions.StartTls
                 );
 

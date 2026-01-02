@@ -1,7 +1,7 @@
 using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     public interface IVirtualBrowserService
     {
@@ -19,8 +19,6 @@ namespace StreamSync.BusinessLogic.Interfaces
         Task<List<VirtualBrowserQueueDto>> GetQueueStatusAsync();
         Task ProcessExpiredSessionsAsync();
         Task ProcessQueueNotificationsAsync();
-        Task<bool> NavigateVirtualBrowserAsync(string virtualBrowserId, string url);
-        Task<bool> ControlVirtualBrowserAsync(string virtualBrowserId, VirtualBrowserControlDto control);
         Task<bool> RestartBrowserProcessAsync(string virtualBrowserId);
     }
 }

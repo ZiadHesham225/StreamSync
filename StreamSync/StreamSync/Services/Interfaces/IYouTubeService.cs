@@ -1,6 +1,6 @@
 using StreamSync.DTOs;
 
-namespace StreamSync.BusinessLogic.Interfaces
+namespace StreamSync.Services.Interfaces
 {
     public interface IYouTubeService
     {
