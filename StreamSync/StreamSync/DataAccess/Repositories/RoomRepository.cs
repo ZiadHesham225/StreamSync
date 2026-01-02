@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
 using StreamSync.Models;
@@ -37,7 +37,7 @@ namespace StreamSync.DataAccess.Repositories
                 .ToListAsync();
         }
 
-        public async Task<Room> GetRoomByInviteCodeAsync(string inviteCode)
+        public async Task<Room?> GetRoomByInviteCodeAsync(string inviteCode)
         {
             return await dbSet
                 .Include(r => r.Admin)

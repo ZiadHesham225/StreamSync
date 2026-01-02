@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
 
@@ -35,7 +35,7 @@ namespace StreamSync.DataAccess.Repositories
             return await dbSet.ToListAsync();
         }
 
-        public async Task<T> GetByIdAsync(object id)
+        public async Task<T?> GetByIdAsync(object id)
         {
             return await dbSet.FindAsync(id);
         }

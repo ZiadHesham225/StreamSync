@@ -1,4 +1,4 @@
-﻿using Google;
+using Google;
 using Microsoft.EntityFrameworkCore;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
@@ -11,11 +11,11 @@ namespace StreamSync.DataAccess.Repositories
         public RefreshTokenRepository(StreamSyncDbContext context) : base(context)
         {
         }
-        public async Task<RefreshToken> GetByUserIdAsync(string userId)
+        public async Task<RefreshToken?> GetByUserIdAsync(string userId)
         {
             return await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.UserId == userId);
         }
-        public async Task<RefreshToken> GetByTokenAsync(string token)
+        public async Task<RefreshToken?> GetByTokenAsync(string token)
         {
             return await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token);
         }
