@@ -1,7 +1,7 @@
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using System.Diagnostics;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class ContainerHealthService : IContainerHealthService
     {
@@ -83,13 +83,6 @@ namespace StreamSync.BusinessLogic.Services
                 _logger.LogError(ex, "Error checking container health for {ContainerId}", containerId);
                 return false;
             }
-        }
-        public string GenerateRandomPassword(int length = 12)
-        {
-            var random = new Random();
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            return new string(Enumerable.Repeat(chars, length)
-                .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
         private async Task<(bool Success, string Output, string Error)> RunDockerCommandAsync(string arguments)

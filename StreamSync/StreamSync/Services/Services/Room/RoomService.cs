@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services.InMemory;
+using Microsoft.AspNetCore.Identity;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services.InMemory;
 using StreamSync.Data;
 using StreamSync.DTOs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class RoomService : IRoomService
     {
@@ -29,7 +29,7 @@ namespace StreamSync.BusinessLogic.Services
             _logger = logger;
         }
 
-        public async Task<Room> CreateRoomAsync(RoomCreateDto roomDto, string userId)
+        public async Task<Room?> CreateRoomAsync(RoomCreateDto roomDto, string userId)
         {
             try
             {
@@ -72,7 +72,7 @@ namespace StreamSync.BusinessLogic.Services
             }
         }
 
-        public async Task<Room> GetRoomByIdAsync(string roomId)
+        public async Task<Room?> GetRoomByIdAsync(string roomId)
         {
             try
             {
@@ -90,7 +90,7 @@ namespace StreamSync.BusinessLogic.Services
             }
         }
 
-        public async Task<Room> GetRoomByInviteCodeAsync(string inviteCode)
+        public async Task<Room?> GetRoomByInviteCodeAsync(string inviteCode)
         {
             try
             {
@@ -518,7 +518,7 @@ namespace StreamSync.BusinessLogic.Services
             }
         }
 
-        public async Task<string> GenerateInviteLink(string roomId)
+        public async Task<string?> GenerateInviteLink(string roomId)
         {
             try
             {

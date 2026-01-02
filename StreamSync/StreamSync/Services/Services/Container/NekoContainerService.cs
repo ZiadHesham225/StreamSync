@@ -1,21 +1,26 @@
 using System.Diagnostics;
 using System.Text;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.Common;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
-    public class DockerComposeNekoService : INekoContainerService
+    /// <summary>
+    /// Manages Neko browser containers using Docker Compose.
+    /// Handles container lifecycle: creation, startup, health checks, and cleanup.
+    /// </summary>
+    public class NekoContainerService : INekoContainerService
     {
-        private readonly ILogger<DockerComposeNekoService> _logger;
+        private readonly ILogger<NekoContainerService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IContainerConfigurationService _configService;
         private readonly IContainerHealthService _healthService;
-        private int MAX_CONTAINERS => _configuration.GetValue<int>("MaxContainers", 2);
+        private int MAX_CONTAINERS => _configuration.GetValue<int>("NekoContainer:MaxContainers", 2);
+        private string _nekoImage => _configuration["NekoContainer:Image"] ?? "ghcr.io/m1k1o/neko/chromium:latest";
         private readonly Dictionary<int, ContainerInfo> _containerInfo = new();
 
-        public DockerComposeNekoService(
-            ILogger<DockerComposeNekoService> logger, 
+        public NekoContainerService(
+            ILogger<NekoContainerService> logger, 
             IConfiguration configuration,
             IContainerConfigurationService configService,
             IContainerHealthService healthService)
@@ -439,10 +444,8 @@ namespace StreamSync.BusinessLogic.Services
 
         private async Task PullNekoImageAsync()
         {
-            const string nekoImage = "ghcr.io/m1k1o/neko/chromium:latest";
-            
-            _logger.LogInformation("Checking if Neko image exists locally: {ImageName}", nekoImage);
-            var checkResult = await RunDockerCommand($"image inspect {nekoImage}");
+            _logger.LogInformation("Checking if Neko image exists locally: {ImageName}", _nekoImage);
+            var checkResult = await RunDockerCommand($"image inspect {_nekoImage}");
             
             if (checkResult.Success)
             {
@@ -450,8 +453,8 @@ namespace StreamSync.BusinessLogic.Services
                 return;
             }
             
-            _logger.LogInformation("Neko image not found locally, pulling: {ImageName}", nekoImage);
-            var result = await RunDockerCommand($"pull {nekoImage}");
+            _logger.LogInformation("Neko image not found locally, pulling: {ImageName}", _nekoImage);
+            var result = await RunDockerCommand($"pull {_nekoImage}");
             if (result.Success)
             {
                 _logger.LogInformation("Successfully pulled Neko image");
@@ -492,36 +495,6 @@ namespace StreamSync.BusinessLogic.Services
                 return result.Output.Trim();
             }
             return null;
-        }
-
-        private async Task<bool> WaitForContainerReadyAsync(int port)
-        {
-            const int maxAttempts = 30;
-            const int delayMs = 1000;
-
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                try
-                {
-                    using var httpClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(5) };
-                    var response = await httpClient.GetAsync($"http://localhost:{port}");
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        _logger.LogInformation("Container is ready on port {Port} after {Attempts} attempts", port, attempt);
-                        return true;
-                    }
-                }
-                catch
-                {
-                    // Expected during startup
-                }
-
-                await Task.Delay(delayMs);
-            }
-
-            _logger.LogError("Container failed to become ready on port {Port} after {MaxAttempts} attempts", port, maxAttempts);
-            return false;
         }
     }
 }

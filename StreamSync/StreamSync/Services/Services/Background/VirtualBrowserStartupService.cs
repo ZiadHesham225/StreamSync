@@ -1,6 +1,6 @@
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class VirtualBrowserStartupService : IHostedService
     {

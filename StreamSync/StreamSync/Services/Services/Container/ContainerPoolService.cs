@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.Common;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class ContainerPoolService : IContainerPoolService, IDisposable
     {

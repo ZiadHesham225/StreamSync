@@ -1,44 +1,41 @@
-using Microsoft.AspNetCore.SignalR;
 using System.Text.Json;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.Interfaces;
 using StreamSync.Common;
 using StreamSync.Data;
 using StreamSync.DTOs;
-using StreamSync.Hubs;
 using StreamSync.Models;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
+    /// <summary>
+    /// Manages virtual browser allocation, lifecycle, and queue processing.
+    /// Uses IVirtualBrowserNotificationService for all client notifications (SRP).
+    /// </summary>
     public class NekoVirtualBrowserService : IVirtualBrowserService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IContainerPoolService _poolService;
         private readonly INekoContainerService _nekoService;
         private readonly IVirtualBrowserQueueService _queueService;
-        private readonly IHubContext<RoomHub, IRoomClient> _hubContext;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IVirtualBrowserNotificationService _notificationService;
         private readonly ILogger<NekoVirtualBrowserService> _logger;
-        private const int MAX_CONTAINERS = 1; // Maximum number of Neko containers
-        private const int SESSION_DURATION_HOURS = 3; // 3 hour limit from allocation time
-        private readonly Random _random = new();
-        private readonly SemaphoreSlim _queueProcessingSemaphore = new(1, 1); // Prevent concurrent queue processing
+        
+        private const int SESSION_DURATION_HOURS = 3;
+        private readonly SemaphoreSlim _queueProcessingSemaphore = new(1, 1);
 
         public NekoVirtualBrowserService(
             IUnitOfWork unitOfWork,
             IContainerPoolService poolService,
             INekoContainerService nekoService,
             IVirtualBrowserQueueService queueService,
-            IHubContext<RoomHub, IRoomClient> hubContext,
-            InMemoryRoomManager roomManager,
+            IVirtualBrowserNotificationService notificationService,
             ILogger<NekoVirtualBrowserService> logger)
         {
             _unitOfWork = unitOfWork;
             _poolService = poolService;
             _nekoService = nekoService;
             _queueService = queueService;
-            _hubContext = hubContext;
-            _roomManager = roomManager;
+            _notificationService = notificationService;
             _logger = logger;
         }
 
@@ -116,8 +113,7 @@ namespace StreamSync.BusinessLogic.Services
                     var queueStatus = await _queueService.GetQueueStatusAsync(roomId);
                     if (queueStatus != null)
                     {
-                        await _hubContext.Clients.Group(roomId).VirtualBrowserQueued(queueStatus);
-                        _logger.LogInformation("Notified all participants in room {RoomId} about queue position {Position}", roomId, position);
+                        await _notificationService.NotifyQueuedAsync(roomId, queueStatus);
                     }
                     
                     return null;
@@ -132,8 +128,7 @@ namespace StreamSync.BusinessLogic.Services
                     var queueStatus = await _queueService.GetQueueStatusAsync(roomId);
                     if (queueStatus != null)
                     {
-                        await _hubContext.Clients.Group(roomId).VirtualBrowserQueued(queueStatus);
-                        _logger.LogInformation("Notified all participants in room {RoomId} about queue position {Position}", roomId, position);
+                        await _notificationService.NotifyQueuedAsync(roomId, queueStatus);
                     }
                     
                     return null;
@@ -173,14 +168,13 @@ namespace StreamSync.BusinessLogic.Services
                     _unitOfWork.Rooms.Update(room);
                     await _unitOfWork.SaveAsync();
 
-                    await _hubContext.Clients.Group(roomId)
-                        .VideoChanged(string.Empty, "Virtual browser mode activated", null);
+                    await _notificationService.NotifyVideoChangedAsync(roomId, string.Empty, "Virtual browser mode activated", null);
                 }
 
-                await _hubContext.Clients.Group(roomId)
-                    .VirtualBrowserAllocated(MapToDto(virtualBrowser));
+                var browserDto = MapToDto(virtualBrowser);
+                await _notificationService.NotifyBrowserAllocatedAsync(roomId, browserDto);
 
-                return MapToDto(virtualBrowser);
+                return browserDto;
             }
             catch (Exception ex)
             {
@@ -234,10 +228,10 @@ namespace StreamSync.BusinessLogic.Services
                 _logger.LogInformation("Successfully allocated virtual browser {BrowserId} for room {RoomId} from queue acceptance", 
                     virtualBrowser.Id, roomId);
 
-                await _hubContext.Clients.Group(roomId)
-                    .VirtualBrowserAllocated(MapToDto(virtualBrowser));
+                var browserDto = MapToDto(virtualBrowser);
+                await _notificationService.NotifyBrowserAllocatedAsync(roomId, browserDto);
 
-                return MapToDto(virtualBrowser);
+                return browserDto;
             }
             catch (Exception ex)
             {
@@ -281,8 +275,7 @@ namespace StreamSync.BusinessLogic.Services
                     _logger.LogWarning("Virtual browser {BrowserId} was already removed from database for room {RoomId}", browserId, roomId);
                 }
 
-                await _hubContext.Clients.Group(roomId)
-                    .VirtualBrowserReleased();
+                await _notificationService.NotifyBrowserReleasedAsync(roomId);
 
                 _ = Task.Run(async () =>
                 {
@@ -411,10 +404,8 @@ namespace StreamSync.BusinessLogic.Services
                 {
                     _logger.LogInformation("Room {RoomId} declined queue notification and was removed from queue", roomId);
                     
-                    // Notify all clients in the room that the queue was cancelled/declined
-                    await _hubContext.Clients.Group(roomId).VirtualBrowserQueueCancelled();
+                    await _notificationService.NotifyQueueCancelledAsync(roomId);
                     
-                    // Process the next item in queue
                     await ProcessQueueAsync();
                 }
                 return declined;
@@ -435,66 +426,13 @@ namespace StreamSync.BusinessLogic.Services
                 {
                     _logger.LogInformation("Room {RoomId} was removed from virtual browser queue", roomId);
                     
-                    // Notify all clients in the room that the queue was cancelled
-                    await _hubContext.Clients.Group(roomId).VirtualBrowserQueueCancelled();
+                    await _notificationService.NotifyQueueCancelledAsync(roomId);
                 }
                 return removed;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cancelling queue for room {RoomId}", roomId);
-                return false;
-            }
-        }
-
-        public async Task<bool> NavigateVirtualBrowserAsync(string virtualBrowserId, string url)
-        {
-            try
-            {
-                var browser = await _unitOfWork.VirtualBrowsers.GetByIdAsync(virtualBrowserId);
-                if (browser == null)
-                {
-                    return false;
-                }
-
-                // Update last accessed URL
-                browser.LastAccessedUrl = url;
-                _unitOfWork.VirtualBrowsers.Update(browser);
-                await _unitOfWork.SaveAsync();
-
-                // TODO: Implement Neko API call to navigate browser
-                // This would require making HTTP requests to the Neko container's API
-                
-                _logger.LogInformation("Navigated virtual browser {BrowserId} to {Url}", virtualBrowserId, url);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error navigating virtual browser {BrowserId}", virtualBrowserId);
-                return false;
-            }
-        }
-
-        public async Task<bool> ControlVirtualBrowserAsync(string virtualBrowserId, VirtualBrowserControlDto controlRequest)
-        {
-            try
-            {
-                var browser = await _unitOfWork.VirtualBrowsers.GetByIdAsync(virtualBrowserId);
-                if (browser == null)
-                {
-                    return false;
-                }
-
-                // TODO: Implement Neko WebSocket control commands
-                // This would require WebSocket communication with the Neko container
-                
-                _logger.LogInformation("Executed control action {Action} on virtual browser {BrowserId}", 
-                    controlRequest.Action, virtualBrowserId);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error controlling virtual browser {BrowserId}", virtualBrowserId);
                 return false;
             }
         }
@@ -561,16 +499,13 @@ namespace StreamSync.BusinessLogic.Services
                     _logger.LogInformation("Cleaning up expired virtual browser {BrowserId} for room {RoomId}", 
                         browser.Id, browser.RoomId);
 
-                    // Return container to pool instead of destroying it
                     await _poolService.ReturnContainerToPoolAsync(browser.ContainerId);
                     
-                    // Remove from database
                     await _unitOfWork.VirtualBrowsers.DeleteAsync(browser.Id);
 
                     if (!string.IsNullOrEmpty(browser.RoomId))
                     {
-                        await _hubContext.Clients.Group(browser.RoomId)
-                            .VirtualBrowserExpired();
+                        await _notificationService.NotifyBrowserExpiredAsync(browser.RoomId);
                     }
                 }
 
@@ -591,8 +526,7 @@ namespace StreamSync.BusinessLogic.Services
 
         private async Task ProcessQueueAsync()
         {
-            // Use semaphore to prevent concurrent queue processing
-            if (!await _queueProcessingSemaphore.WaitAsync(100)) // 100ms timeout
+            if (!await _queueProcessingSemaphore.WaitAsync(100))
             {
                 _logger.LogDebug("Queue processing already in progress, skipping");
                 return;
@@ -613,23 +547,10 @@ namespace StreamSync.BusinessLogic.Services
                         var notified = await _queueService.NotifyRoomAsync(nextRoomId);
                         if (notified)
                         {
-                            // Get the updated queue status to send to client
                             var queueStatus = await _queueService.GetQueueStatusAsync(nextRoomId);
                             if (queueStatus != null)
                             {
-                                // Get the room controller and send notification only to them
-                                var controller = _roomManager.GetController(nextRoomId);
-                                if (controller != null)
-                                {
-                                    _logger.LogInformation("Notifying room controller {ControllerId} in room {RoomId} about available virtual browser (Position: {Position})", 
-                                        controller.Id, nextRoomId, queueStatus.Position);
-                                    await _hubContext.Clients.Client(controller.ConnectionId).VirtualBrowserAvailable(queueStatus);
-                                }
-                                else
-                                {
-                                    _logger.LogWarning("No controller found for room {RoomId}, sending notification to entire room group", nextRoomId);
-                                    await _hubContext.Clients.Group(nextRoomId).VirtualBrowserAvailable(queueStatus);
-                                }
+                                await _notificationService.NotifyBrowserAvailableAsync(nextRoomId, queueStatus);
                             }
                         }
                         else
@@ -714,34 +635,6 @@ namespace StreamSync.BusinessLogic.Services
                 NekoAdminPassword = browser.NekoAdminPassword,
                 TimeRemaining = timeRemaining
             };
-        }
-
-        private async Task<ContainerInfo?> GetContainerInfoByIdAsync(string containerId)
-        {
-            // Get all running containers and find the one with matching ID
-            var allContainers = await _nekoService.GetAllRunningContainersAsync();
-            return allContainers.Values.FirstOrDefault(c => c.ContainerId == containerId);
-        }
-
-        private int GetContainerIndexFromName(string containerName)
-        {
-            // Extract index from container name like "neko-browser-0"
-            if (containerName.StartsWith("neko-browser-"))
-            {
-                var indexStr = containerName.Substring("neko-browser-".Length);
-                if (int.TryParse(indexStr, out var index))
-                {
-                    return index;
-                }
-            }
-            return -1;
-        }
-
-        private string GenerateRandomPassword(int length = 12)
-        {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            return new string(Enumerable.Repeat(chars, length)
-                .Select(s => s[_random.Next(s.Length)]).ToArray());
         }
 
         public async Task<bool> RestartBrowserProcessAsync(string virtualBrowserId)

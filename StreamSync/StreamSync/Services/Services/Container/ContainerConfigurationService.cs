@@ -1,15 +1,19 @@
-using StreamSync.BusinessLogic.Interfaces;
+using StreamSync.Services.Interfaces;
 using StreamSync.Common;
 
-namespace StreamSync.BusinessLogic.Services
+namespace StreamSync.Services
 {
     public class ContainerConfigurationService : IContainerConfigurationService
     {
         private readonly ILogger<ContainerConfigurationService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly string _nekoImage;
 
-        public ContainerConfigurationService(ILogger<ContainerConfigurationService> logger)
+        public ContainerConfigurationService(ILogger<ContainerConfigurationService> logger, IConfiguration configuration)
         {
             _logger = logger;
+            _configuration = configuration;
+            _nekoImage = _configuration["NekoContainer:Image"] ?? "ghcr.io/m1k1o/neko/chromium:latest";
         }
 
         public ContainerConfig GetContainerConfig(int containerIndex)
@@ -40,7 +44,7 @@ namespace StreamSync.BusinessLogic.Services
         {
             var composeContent = $@"services:
   {config.ContainerName}:
-    image: ghcr.io/m1k1o/neko/chromium:latest
+    image: {_nekoImage}
     container_name: {config.ContainerName}
     restart: unless-stopped
     shm_size: 2gb
