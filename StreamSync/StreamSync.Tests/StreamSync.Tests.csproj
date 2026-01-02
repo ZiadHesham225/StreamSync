@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Suppress Moq nullability warnings (known Moq limitation with nullable reference types) -->
+    <NoWarn>$(NoWarn);CS8620</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

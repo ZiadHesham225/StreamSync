@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
 using StreamSync.Models;
@@ -214,7 +214,7 @@ namespace StreamSync.Tests.Services
 
             var mockRefreshTokenRepo = new Mock<IRefreshTokenRepository>();
             mockRefreshTokenRepo.Setup(r => r.GetByUserIdAsync(userId))
-                .ReturnsAsync((RefreshToken?)null);
+                .Returns(Task.FromResult<RefreshToken?>(null));
             mockRefreshTokenRepo.Setup(r => r.CreateAsync(It.IsAny<RefreshToken>()))
                 .ReturnsAsync((RefreshToken rt) => rt);
             

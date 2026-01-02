@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services;
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services;
+using StreamSync.Services.InMemory;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
 using StreamSync.DTOs;
@@ -67,7 +67,7 @@ namespace StreamSync.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.Name.Should().Be("Test Room");
+            result!.Name.Should().Be("Test Room");
             result.VideoUrl.Should().Be("https://youtube.com/watch?v=test");
             result.AdminId.Should().Be(userId);
             result.IsActive.Should().BeTrue();
@@ -105,7 +105,7 @@ namespace StreamSync.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.IsPrivate.Should().BeTrue();
+            result!.IsPrivate.Should().BeTrue();
             result.PasswordHash.Should().NotBeNullOrEmpty();
             result.PasswordHash.Should().NotBe("secretpassword123"); // Should be hashed
         }
@@ -153,7 +153,7 @@ namespace StreamSync.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.Name.Should().Be("Test Room");
+            result!.Name.Should().Be("Test Room");
         }
 
         #endregion
@@ -191,7 +191,7 @@ namespace StreamSync.Tests.Services
             // Arrange
             var roomId = "nonexistent-room";
             var mockRoomRepo = new Mock<IRoomRepository>();
-            mockRoomRepo.Setup(r => r.GetByIdAsync(roomId)).ReturnsAsync((Room?)null);
+            mockRoomRepo.Setup(r => r.GetByIdAsync(roomId)).Returns(Task.FromResult<Room?>(null));
             _mockUnitOfWork.Setup(u => u.Rooms).Returns(mockRoomRepo.Object);
 
             // Act
@@ -240,7 +240,7 @@ namespace StreamSync.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.InviteCode.Should().Be(inviteCode);
+            result!.InviteCode.Should().Be(inviteCode);
         }
 
         [Theory]
@@ -741,7 +741,7 @@ namespace StreamSync.Tests.Services
             // Arrange
             var roomId = "nonexistent-room";
             var mockRoomRepo = new Mock<IRoomRepository>();
-            mockRoomRepo.Setup(r => r.GetByIdAsync(roomId)).ReturnsAsync((Room?)null);
+            mockRoomRepo.Setup(r => r.GetByIdAsync(roomId)).Returns(Task.FromResult<Room?>(null));
             _mockUnitOfWork.Setup(u => u.Rooms).Returns(mockRoomRepo.Object);
 
             // Act

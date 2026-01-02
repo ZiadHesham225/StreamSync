@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services;
 using StreamSync.DTOs;
 using StreamSync.Models;
 

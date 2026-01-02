@@ -1,4 +1,4 @@
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.InMemory;
 using StreamSync.Models.InMemory;
 
 namespace StreamSync.Tests.Services
@@ -503,56 +503,53 @@ namespace StreamSync.Tests.Services
 
         #endregion
 
-        #region Thread Safety Tests
+#region Thread Safety Tests
 
-        [Fact]
-        public void ConcurrentAddParticipants_ShouldBeThreadSafe()
+[Fact]
+public async Task ConcurrentAddParticipants_ShouldBeThreadSafe()
+{
+    // Arrange
+    var roomId = "room-123";
+
+    // Act
+    var tasks = Enumerable.Range(0, 100).Select(i =>
+    {
+        var userId = $"user-{i}";
+        return Task.Run(() =>
         {
-            // Arrange
-            var roomId = "room-123";
-            var tasks = new List<Task>();
+            _roomManager.AddParticipant(roomId, new RoomParticipant(userId, $"conn-{userId}", $"User {userId}", null));
+        });
+    });
 
-            // Act
-            for (int i = 0; i < 100; i++)
-            {
-                var userId = $"user-{i}";
-                tasks.Add(Task.Run(() =>
-                {
-                    _roomManager.AddParticipant(roomId, new RoomParticipant(userId, $"conn-{userId}", $"User {userId}", null));
-                }));
-            }
+    await Task.WhenAll(tasks);
 
-            Task.WaitAll(tasks.ToArray());
+    // Assert
+    var participants = _roomManager.GetRoomParticipants(roomId);
+    participants.Should().HaveCount(100);
+}
 
-            // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
-            participants.Should().HaveCount(100);
-        }
+[Fact]
+public async Task ConcurrentAddMessages_ShouldBeThreadSafe()
+{
+    // Arrange
+    var roomId = "room-123";
 
-        [Fact]
-        public void ConcurrentAddMessages_ShouldBeThreadSafe()
+    // Act
+    var tasks = Enumerable.Range(0, 100).Select(messageId =>
+    {
+        return Task.Run(() =>
         {
-            // Arrange
-            var roomId = "room-123";
-            var tasks = new List<Task>();
+            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User", null, $"Message {messageId}"));
+        });
+    });
 
-            // Act
-            for (int i = 0; i < 100; i++)
-            {
-                var messageId = i;
-                tasks.Add(Task.Run(() =>
-                {
-                    _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User", null, $"Message {messageId}"));
-                }));
-            }
+    await Task.WhenAll(tasks);
 
-            Task.WaitAll(tasks.ToArray());
+    // Assert
+    var messages = _roomManager.GetRoomMessages(roomId);
+    messages.Should().HaveCount(50); // Should be limited to MAX_MESSAGES_PER_ROOM
+}
 
-            // Assert
-            var messages = _roomManager.GetRoomMessages(roomId);
-            messages.Should().HaveCount(50); // Should be limited to MAX_MESSAGES_PER_ROOM
-        }
-
-        #endregion
+#endregion
     }
 }

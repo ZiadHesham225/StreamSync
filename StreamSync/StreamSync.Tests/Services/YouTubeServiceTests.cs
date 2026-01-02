@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services;
 
 namespace StreamSync.Tests.Services
 {

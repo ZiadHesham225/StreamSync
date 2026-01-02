@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services;
 using StreamSync.DTOs;
 using StreamSync.Models;
 

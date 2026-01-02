@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using StreamSync.BusinessLogic.Interfaces;
-using StreamSync.BusinessLogic.Services.InMemory;
+using StreamSync.Services.Interfaces;
+using StreamSync.Services.InMemory;
 using StreamSync.Controllers;
 using StreamSync.DTOs;
 using StreamSync.Models;
@@ -217,7 +217,7 @@ namespace StreamSync.Tests.Controllers
             // Arrange
             var roomId = "nonexistent";
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId))
-                .ReturnsAsync((Room?)null);
+                .Returns(Task.FromResult<Room?>(null));
 
             // Act
             var result = await _controller.GetRoomParticipants(roomId);
@@ -263,7 +263,7 @@ namespace StreamSync.Tests.Controllers
             // Arrange
             var roomId = "nonexistent";
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId))
-                .ReturnsAsync((Room?)null);
+                .Returns(Task.FromResult<Room?>(null));
 
             // Act
             var result = await _controller.GetRoomMessages(roomId);
