@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  # Redis for SignalR backplane and room state
+  redis:
+    image: redis:alpine
+    container_name: streamsync-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - watchparty-network
+
   # Test container for manual testing
   neko-test-browser:
     image: ghcr.io/m1k1o/neko/chromium:latest
@@ -30,6 +43,9 @@ services:
       - test
     networks:
       - watchparty-network
+
+volumes:
+  redis-data:
 
 networks:
   watchparty-network:
