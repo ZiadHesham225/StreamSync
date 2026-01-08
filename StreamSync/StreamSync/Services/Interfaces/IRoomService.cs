@@ -21,11 +21,5 @@ namespace StreamSync.Services.Interfaces
         Task<bool> IsUserAdminAsync(string roomId, string userId);
         Task<bool> CanUserControlRoomAsync(string roomId, string userId);
         Task<bool> UpdateSyncModeAsync(string roomId, string syncMode);
-        
-        // Removed methods that are now handled in-memory:
-        // - GetRoomUsersAsync, GetRegisteredRoomUsersAsync (participants are in-memory)
-        // - JoinRoomAsync, JoinRoomAsGuestAsync, LeaveRoomAsync, GuestLeaveRoomAsync (handled by RoomHub)
-        // - TransferAdminAsync, UpdateUserPermissionsAsync (control is handled in-memory)
-        // - IsUserInRoomAsync (participants are in-memory)
     }
 }

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 
@@ -14,16 +13,16 @@ namespace StreamSync.Services
     public class VirtualBrowserNotificationService : IVirtualBrowserNotificationService
     {
         private readonly IHubContext<RoomHub, IRoomClient> _hubContext;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly ILogger<VirtualBrowserNotificationService> _logger;
 
         public VirtualBrowserNotificationService(
             IHubContext<RoomHub, IRoomClient> hubContext,
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             ILogger<VirtualBrowserNotificationService> logger)
         {
             _hubContext = hubContext;
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _logger = logger;
         }
 
@@ -100,7 +99,7 @@ namespace StreamSync.Services
             }
 
             // Prefer notifying only the controller if one exists
-            var controller = _roomManager.GetController(roomId);
+            var controller = await _roomStateService.GetControllerAsync(roomId);
             if (controller != null)
             {
                 _logger.LogInformation(

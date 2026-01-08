@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models.InMemory;
@@ -13,16 +12,16 @@ namespace StreamSync.Services
     /// </summary>
     public class ChatService : IChatService
     {
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly IHubContext<RoomHub, IRoomClient> _hubContext;
         private readonly ILogger<ChatService> _logger;
 
         public ChatService(
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             IHubContext<RoomHub, IRoomClient> hubContext,
             ILogger<ChatService> logger)
         {
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _hubContext = hubContext;
             _logger = logger;
         }
@@ -38,7 +37,7 @@ namespace StreamSync.Services
                 }
 
                 var chatMessage = new ChatMessage(senderId, senderName, avatarUrl, content);
-                _roomManager.AddMessage(roomId, chatMessage);
+                await _roomStateService.AddMessageAsync(roomId, chatMessage);
 
                 await _hubContext.Clients.Group(roomId).ReceiveMessage(
                     senderId,
@@ -63,7 +62,7 @@ namespace StreamSync.Services
             try
             {
                 var chatMessage = new ChatMessage("system", "System", null, content);
-                _roomManager.AddMessage(roomId, chatMessage);
+                await _roomStateService.AddMessageAsync(roomId, chatMessage);
 
                 await _hubContext.Clients.Group(roomId).ReceiveMessage(
                     "system",
@@ -81,9 +80,9 @@ namespace StreamSync.Services
             }
         }
 
-        public Task<List<ChatMessageDto>> GetChatHistoryAsync(string roomId)
+        public async Task<List<ChatMessageDto>> GetChatHistoryAsync(string roomId)
         {
-            var messages = _roomManager.GetRoomMessages(roomId);
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
             var messageDtos = messages.Select(m => new ChatMessageDto
             {
                 Id = m.Id,
@@ -94,7 +93,7 @@ namespace StreamSync.Services
                 SentAt = m.SentAt
             }).ToList();
 
-            return Task.FromResult(messageDtos);
+            return messageDtos;
         }
 
         public async Task SendChatHistoryToClientAsync(string connectionId, string roomId)

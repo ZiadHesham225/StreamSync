@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.Data;
 using StreamSync.DTOs;
 using StreamSync.Models;
@@ -12,20 +11,20 @@ namespace StreamSync.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IVirtualBrowserQueueService _queueService;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly ILogger<RoomService> _logger;
 
         public RoomService(
             IUnitOfWork unitOfWork,
             UserManager<ApplicationUser> userManager,
             IVirtualBrowserQueueService queueService,
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             ILogger<RoomService> logger)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
             _queueService = queueService;
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _logger = logger;
         }
 
@@ -575,7 +574,7 @@ namespace StreamSync.Services
                     return true;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, userId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, userId);
                 return participant != null && participant.HasControl;
             }
             catch (Exception ex)

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models.InMemory;
@@ -13,18 +12,18 @@ namespace StreamSync.Services
     /// </summary>
     public class RoomParticipantService : IRoomParticipantService
     {
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly IRoomService _roomService;
         private readonly IHubContext<RoomHub, IRoomClient> _hubContext;
         private readonly ILogger<RoomParticipantService> _logger;
 
         public RoomParticipantService(
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             IRoomService roomService,
             IHubContext<RoomHub, IRoomClient> hubContext,
             ILogger<RoomParticipantService> logger)
         {
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _roomService = roomService;
             _hubContext = hubContext;
             _logger = logger;
@@ -32,7 +31,7 @@ namespace StreamSync.Services
 
         public async Task<List<RoomParticipantDto>> GetParticipantDtosAsync(string roomId)
         {
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             var room = await _roomService.GetRoomByIdAsync(roomId);
             var adminId = room?.AdminId;
 
