@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using StreamSync.Services;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models;
@@ -16,7 +15,7 @@ namespace StreamSync.Tests.Services
         private readonly Mock<IHubContext<RoomHub, IRoomClient>> _mockHubContext;
         private readonly Mock<IRoomClient> _mockClientProxy;
         private readonly Mock<ILogger<RoomParticipantService>> _mockLogger;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly Mock<IRoomStateService> _mockRoomStateService;
         private readonly RoomParticipantService _participantService;
 
         public RoomParticipantServiceTests()
@@ -25,15 +24,20 @@ namespace StreamSync.Tests.Services
             _mockHubContext = new Mock<IHubContext<RoomHub, IRoomClient>>();
             _mockClientProxy = new Mock<IRoomClient>();
             _mockLogger = new Mock<ILogger<RoomParticipantService>>();
-            _roomManager = new InMemoryRoomManager();
+            _mockRoomStateService = new Mock<IRoomStateService>();
 
             var mockClients = new Mock<IHubClients<IRoomClient>>();
             mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             mockClients.Setup(c => c.Client(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
 
+            // Default setup - return empty list
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(It.IsAny<string>()))
+                .ReturnsAsync(new List<RoomParticipant>());
+
             _participantService = new RoomParticipantService(
-                _roomManager,
+                _mockRoomStateService.Object,
                 _mockRoomService.Object,
                 _mockHubContext.Object,
                 _mockLogger.Object);
@@ -55,8 +59,15 @@ namespace StreamSync.Tests.Services
                 AdminId = adminId
             };
 
-            _roomManager.AddParticipant(roomId, new RoomParticipant(adminId, "conn-1", "Admin", "https://avatar.com/admin.png", true));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-2", "conn-2", "User2", "https://avatar.com/user2.png", false));
+            var participants = new List<RoomParticipant>
+            {
+                new RoomParticipant(adminId, "conn-1", "Admin", "https://avatar.com/admin.png", true),
+                new RoomParticipant("user-2", "conn-2", "User2", "https://avatar.com/user2.png", false)
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(roomId))
+                .ReturnsAsync(participants);
             
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId)).ReturnsAsync(room);
 
@@ -95,7 +106,14 @@ namespace StreamSync.Tests.Services
         {
             // Arrange
             var roomId = "room-1";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User1", null, false));
+            var participants = new List<RoomParticipant>
+            {
+                new RoomParticipant("user-1", "conn-1", "User1", null, false)
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(roomId))
+                .ReturnsAsync(participants);
             
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId)).ReturnsAsync((Room?)null);
 
@@ -183,8 +201,15 @@ namespace StreamSync.Tests.Services
                 AdminId = "admin-1"
             };
 
-            _roomManager.AddParticipant(roomId, new RoomParticipant("admin-1", "conn-1", "Admin", null, true));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-2", "conn-2", "User2", null, false));
+            var participants = new List<RoomParticipant>
+            {
+                new RoomParticipant("admin-1", "conn-1", "Admin", null, true),
+                new RoomParticipant("user-2", "conn-2", "User2", null, false)
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(roomId))
+                .ReturnsAsync(participants);
             
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId)).ReturnsAsync(room);
 
@@ -231,7 +256,14 @@ namespace StreamSync.Tests.Services
                 AdminId = "admin-1"
             };
 
-            _roomManager.AddParticipant(roomId, new RoomParticipant("admin-1", "conn-1", "Admin", null, true));
+            var participants = new List<RoomParticipant>
+            {
+                new RoomParticipant("admin-1", "conn-1", "Admin", null, true)
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(roomId))
+                .ReturnsAsync(participants);
             
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId)).ReturnsAsync(room);
 

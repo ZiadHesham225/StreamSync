@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using StreamSync.Services;
-using StreamSync.Services.InMemory;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models.InMemory;
@@ -13,23 +13,34 @@ namespace StreamSync.Tests.Services
         private readonly Mock<IHubContext<RoomHub, IRoomClient>> _mockHubContext;
         private readonly Mock<IRoomClient> _mockClientProxy;
         private readonly Mock<ILogger<ChatService>> _mockLogger;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly Mock<IRoomStateService> _mockRoomStateService;
         private readonly ChatService _chatService;
+        private readonly List<ChatMessage> _storedMessages = new();
 
         public ChatServiceTests()
         {
             _mockHubContext = new Mock<IHubContext<RoomHub, IRoomClient>>();
             _mockClientProxy = new Mock<IRoomClient>();
             _mockLogger = new Mock<ILogger<ChatService>>();
-            _roomManager = new InMemoryRoomManager();
+            _mockRoomStateService = new Mock<IRoomStateService>();
 
             var mockClients = new Mock<IHubClients<IRoomClient>>();
             mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             mockClients.Setup(c => c.Client(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
 
+            // Setup mock to track added messages
+            _mockRoomStateService
+                .Setup(r => r.AddMessageAsync(It.IsAny<string>(), It.IsAny<ChatMessage>()))
+                .Callback<string, ChatMessage>((roomId, msg) => _storedMessages.Add(msg))
+                .Returns(Task.CompletedTask);
+
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(It.IsAny<string>()))
+                .ReturnsAsync(() => _storedMessages.ToList());
+
             _chatService = new ChatService(
-                _roomManager,
+                _mockRoomStateService.Object,
                 _mockHubContext.Object,
                 _mockLogger.Object);
         }
@@ -125,11 +136,12 @@ namespace StreamSync.Tests.Services
             await _chatService.SendMessageAsync(roomId, senderId, senderName, null, content);
 
             // Assert
-            var messages = _roomManager.GetRoomMessages(roomId);
-            messages.Should().HaveCount(1);
-            messages.First().Content.Should().Be(content);
-            messages.First().SenderId.Should().Be(senderId);
-            messages.First().SenderName.Should().Be(senderName);
+            _mockRoomStateService.Verify(
+                r => r.AddMessageAsync(roomId, It.Is<ChatMessage>(m => 
+                    m.Content == content && 
+                    m.SenderId == senderId && 
+                    m.SenderName == senderName)),
+                Times.Once);
         }
 
         #endregion
@@ -163,11 +175,12 @@ namespace StreamSync.Tests.Services
             await _chatService.SendSystemMessageAsync(roomId, content);
 
             // Assert
-            var messages = _roomManager.GetRoomMessages(roomId);
-            messages.Should().HaveCount(1);
-            messages.First().SenderId.Should().Be("system");
-            messages.First().SenderName.Should().Be("System");
-            messages.First().Content.Should().Be(content);
+            _mockRoomStateService.Verify(
+                r => r.AddMessageAsync(roomId, It.Is<ChatMessage>(m => 
+                    m.SenderId == "system" && 
+                    m.SenderName == "System" && 
+                    m.Content == content)),
+                Times.Once);
         }
 
         #endregion
@@ -179,9 +192,16 @@ namespace StreamSync.Tests.Services
         {
             // Arrange
             var roomId = "room-1";
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User1", null, "Message 1"));
-            _roomManager.AddMessage(roomId, new ChatMessage("user-2", "User2", null, "Message 2"));
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User1", null, "Message 3"));
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage("user-1", "User1", null, "Message 1"),
+                new ChatMessage("user-2", "User2", null, "Message 2"),
+                new ChatMessage("user-1", "User1", null, "Message 3")
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(messages);
 
             // Act
             var result = await _chatService.GetChatHistoryAsync(roomId);
@@ -197,6 +217,9 @@ namespace StreamSync.Tests.Services
         {
             // Arrange
             var roomId = "room-1";
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(new List<ChatMessage>());
 
             // Act
             var result = await _chatService.GetChatHistoryAsync(roomId);
@@ -210,9 +233,11 @@ namespace StreamSync.Tests.Services
         {
             // Arrange
             var roomId = "room-1";
-            
             var message = new ChatMessage("user-1", "TestUser", "https://avatar.com/1.png", "Test content");
-            _roomManager.AddMessage(roomId, message);
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(new List<ChatMessage> { message });
 
             // Act
             var result = await _chatService.GetChatHistoryAsync(roomId);
@@ -238,8 +263,15 @@ namespace StreamSync.Tests.Services
             // Arrange
             var connectionId = "conn-123";
             var roomId = "room-1";
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User1", null, "Message 1"));
-            _roomManager.AddMessage(roomId, new ChatMessage("user-2", "User2", null, "Message 2"));
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage("user-1", "User1", null, "Message 1"),
+                new ChatMessage("user-2", "User2", null, "Message 2")
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(messages);
 
             // Act
             await _chatService.SendChatHistoryToClientAsync(connectionId, roomId);
@@ -256,6 +288,10 @@ namespace StreamSync.Tests.Services
             // Arrange
             var connectionId = "conn-123";
             var roomId = "room-1";
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(new List<ChatMessage>());
 
             // Act
             await _chatService.SendChatHistoryToClientAsync(connectionId, roomId);

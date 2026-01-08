@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.Controllers;
 using StreamSync.DTOs;
 using StreamSync.Models;
@@ -17,7 +16,7 @@ namespace StreamSync.Tests.Controllers
         private readonly Mock<IRoomService> _mockRoomService;
         private readonly Mock<UserManager<ApplicationUser>> _mockUserManager;
         private readonly Mock<ILogger<RoomController>> _mockLogger;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly Mock<IRoomStateService> _mockRoomStateService;
         private readonly RoomController _controller;
 
         public RoomControllerTests()
@@ -25,11 +24,22 @@ namespace StreamSync.Tests.Controllers
             _mockRoomService = new Mock<IRoomService>();
             _mockUserManager = CreateMockUserManager();
             _mockLogger = new Mock<ILogger<RoomController>>();
-            _roomManager = new InMemoryRoomManager();
+            _mockRoomStateService = new Mock<IRoomStateService>();
+
+            // Default setup - return 0 for count, empty lists
+            _mockRoomStateService
+                .Setup(r => r.GetParticipantCountAsync(It.IsAny<string>()))
+                .ReturnsAsync(0);
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(It.IsAny<string>()))
+                .ReturnsAsync(new List<RoomParticipant>());
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(It.IsAny<string>()))
+                .ReturnsAsync(new List<ChatMessage>());
 
             _controller = new RoomController(
                 _mockRoomService.Object,
-                _roomManager,
+                _mockRoomStateService.Object,
                 _mockUserManager.Object,
                 _mockLogger.Object);
 
@@ -161,9 +171,10 @@ namespace StreamSync.Tests.Controllers
                 }
             };
 
-            // Add participants to the room
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-2", "conn-2", "User Two", null));
+            // Setup mock to return participant count
+            _mockRoomStateService
+                .Setup(r => r.GetParticipantCountAsync(roomId))
+                .ReturnsAsync(2);
 
             _mockRoomService.Setup(s => s.GetActiveRoomsAsync())
                 .ReturnsAsync(rooms);
@@ -197,18 +208,25 @@ namespace StreamSync.Tests.Controllers
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId))
                 .ReturnsAsync(room);
 
-            _roomManager.AddParticipant(roomId, new RoomParticipant(adminId, "conn-1", "Admin User", null, true));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-2", "conn-2", "Regular User", null, false));
+            var participants = new List<RoomParticipant>
+            {
+                new RoomParticipant(adminId, "conn-1", "Admin User", null, true),
+                new RoomParticipant("user-2", "conn-2", "Regular User", null, false)
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomParticipantsAsync(roomId))
+                .ReturnsAsync(participants);
 
             // Act
             var result = await _controller.GetRoomParticipants(roomId);
 
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var participants = okResult.Value.Should().BeAssignableTo<List<RoomParticipantDto>>().Subject;
-            participants.Should().HaveCount(2);
-            participants.Should().Contain(p => p.Id == adminId && p.IsAdmin);
-            participants.Should().Contain(p => p.Id == "user-2" && !p.IsAdmin);
+            var returnedParticipants = okResult.Value.Should().BeAssignableTo<List<RoomParticipantDto>>().Subject;
+            returnedParticipants.Should().HaveCount(2);
+            returnedParticipants.Should().Contain(p => p.Id == adminId && p.IsAdmin);
+            returnedParticipants.Should().Contain(p => p.Id == "user-2" && !p.IsAdmin);
         }
 
         [Fact]
@@ -245,16 +263,23 @@ namespace StreamSync.Tests.Controllers
             _mockRoomService.Setup(s => s.GetRoomByIdAsync(roomId))
                 .ReturnsAsync(room);
 
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User One", null, "Hello!"));
-            _roomManager.AddMessage(roomId, new ChatMessage("user-2", "User Two", null, "Hi there!"));
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage("user-1", "User One", null, "Hello!"),
+                new ChatMessage("user-2", "User Two", null, "Hi there!")
+            };
+            
+            _mockRoomStateService
+                .Setup(r => r.GetRoomMessagesAsync(roomId))
+                .ReturnsAsync(messages);
 
             // Act
             var result = await _controller.GetRoomMessages(roomId);
 
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var messages = okResult.Value.Should().BeAssignableTo<IEnumerable<ChatMessageDto>>().Subject.ToList();
-            messages.Should().HaveCount(2);
+            var returnedMessages = okResult.Value.Should().BeAssignableTo<IEnumerable<ChatMessageDto>>().Subject.ToList();
+            returnedMessages.Should().HaveCount(2);
         }
 
         [Fact]

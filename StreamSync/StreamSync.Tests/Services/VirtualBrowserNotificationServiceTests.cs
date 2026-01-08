@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using StreamSync.Services;
-using StreamSync.Services.InMemory;
+using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models.InMemory;
@@ -13,7 +13,7 @@ namespace StreamSync.Tests.Services
         private readonly Mock<IHubContext<RoomHub, IRoomClient>> _mockHubContext;
         private readonly Mock<IRoomClient> _mockClientProxy;
         private readonly Mock<ILogger<VirtualBrowserNotificationService>> _mockLogger;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly Mock<IRoomStateService> _mockRoomStateService;
         private readonly VirtualBrowserNotificationService _notificationService;
 
         public VirtualBrowserNotificationServiceTests()
@@ -21,16 +21,21 @@ namespace StreamSync.Tests.Services
             _mockHubContext = new Mock<IHubContext<RoomHub, IRoomClient>>();
             _mockClientProxy = new Mock<IRoomClient>();
             _mockLogger = new Mock<ILogger<VirtualBrowserNotificationService>>();
-            _roomManager = new InMemoryRoomManager();
+            _mockRoomStateService = new Mock<IRoomStateService>();
 
             var mockClients = new Mock<IHubClients<IRoomClient>>();
             mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             mockClients.Setup(c => c.Client(It.IsAny<string>())).Returns(_mockClientProxy.Object);
             _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
 
+            // Default setup - no controller
+            _mockRoomStateService
+                .Setup(r => r.GetControllerAsync(It.IsAny<string>()))
+                .ReturnsAsync((RoomParticipant?)null);
+
             _notificationService = new VirtualBrowserNotificationService(
                 _mockHubContext.Object,
-                _roomManager,
+                _mockRoomStateService.Object,
                 _mockLogger.Object);
         }
 
@@ -258,7 +263,9 @@ namespace StreamSync.Tests.Services
             };
 
             var participant = new RoomParticipant(controllerId, controllerConnectionId, "Controller", null, true);
-            _roomManager.AddParticipant(roomId, participant);
+            _mockRoomStateService
+                .Setup(r => r.GetControllerAsync(roomId))
+                .ReturnsAsync(participant);
 
             // Act
             await _notificationService.NotifyBrowserAvailableAsync(roomId, queueStatus);

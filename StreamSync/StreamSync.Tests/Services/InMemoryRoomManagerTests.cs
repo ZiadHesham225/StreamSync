@@ -1,37 +1,40 @@
+using Microsoft.Extensions.Logging;
 using StreamSync.Services.InMemory;
 using StreamSync.Models.InMemory;
 
 namespace StreamSync.Tests.Services
 {
-    public class InMemoryRoomManagerTests
+    public class InMemoryRoomStateServiceTests
     {
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly InMemoryRoomStateService _roomStateService;
+        private readonly Mock<ILogger<InMemoryRoomStateService>> _mockLogger;
 
-        public InMemoryRoomManagerTests()
+        public InMemoryRoomStateServiceTests()
         {
-            _roomManager = new InMemoryRoomManager();
+            _mockLogger = new Mock<ILogger<InMemoryRoomStateService>>();
+            _roomStateService = new InMemoryRoomStateService(_mockLogger.Object);
         }
 
         #region AddParticipant Tests
 
         [Fact]
-        public void AddParticipant_ShouldAddParticipantToRoom()
+        public async Task AddParticipantAsync_ShouldAddParticipantToRoom()
         {
             // Arrange
             var roomId = "room-123";
             var participant = new RoomParticipant("user-1", "conn-1", "User One", null);
 
             // Act
-            _roomManager.AddParticipant(roomId, participant);
+            await _roomStateService.AddParticipantAsync(roomId, participant);
 
             // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             participants.Should().ContainSingle();
             participants.First().Id.Should().Be("user-1");
         }
 
         [Fact]
-        public void AddParticipant_ShouldAddMultipleParticipants()
+        public async Task AddParticipantAsync_ShouldAddMultipleParticipants()
         {
             // Arrange
             var roomId = "room-123";
@@ -39,16 +42,16 @@ namespace StreamSync.Tests.Services
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null);
 
             // Act
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
 
             // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             participants.Should().HaveCount(2);
         }
 
         [Fact]
-        public void AddParticipant_ShouldUpdateExistingParticipant()
+        public async Task AddParticipantAsync_ShouldUpdateExistingParticipant()
         {
             // Arrange
             var roomId = "room-123";
@@ -56,11 +59,11 @@ namespace StreamSync.Tests.Services
             var updatedParticipant = new RoomParticipant("user-1", "conn-2", "New Name", "avatar.jpg");
 
             // Act
-            _roomManager.AddParticipant(roomId, participant);
-            _roomManager.AddParticipant(roomId, updatedParticipant);
+            await _roomStateService.AddParticipantAsync(roomId, participant);
+            await _roomStateService.AddParticipantAsync(roomId, updatedParticipant);
 
             // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             participants.Should().ContainSingle();
             participants.First().DisplayName.Should().Be("New Name");
             participants.First().ConnectionId.Should().Be("conn-2");
@@ -71,46 +74,49 @@ namespace StreamSync.Tests.Services
         #region RemoveParticipant Tests
 
         [Fact]
-        public void RemoveParticipant_ShouldRemoveParticipantFromRoom()
+        public async Task RemoveParticipantAsync_ShouldRemoveParticipantFromRoom()
         {
             // Arrange
             var roomId = "room-123";
             var participant = new RoomParticipant("user-1", "conn-1", "User One", null);
-            _roomManager.AddParticipant(roomId, participant);
+            await _roomStateService.AddParticipantAsync(roomId, participant);
 
             // Act
-            _roomManager.RemoveParticipant(roomId, "user-1");
+            await _roomStateService.RemoveParticipantAsync(roomId, "user-1");
 
             // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             participants.Should().BeEmpty();
         }
 
         [Fact]
-        public void RemoveParticipant_WhenLastParticipant_ShouldCleanupRoom()
+        public async Task RemoveParticipantAsync_WhenLastParticipant_ShouldNotDeleteMessagesImmediately()
         {
             // Arrange
             var roomId = "room-123";
             var participant = new RoomParticipant("user-1", "conn-1", "User One", null);
-            _roomManager.AddParticipant(roomId, participant);
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User One", null, "Hello"));
+            await _roomStateService.AddParticipantAsync(roomId, participant);
+            await _roomStateService.AddMessageAsync(roomId, new ChatMessage("user-1", "User One", null, "Hello"));
 
             // Act
-            _roomManager.RemoveParticipant(roomId, "user-1");
+            await _roomStateService.RemoveParticipantAsync(roomId, "user-1");
 
-            // Assert
-            _roomManager.GetRoomParticipants(roomId).Should().BeEmpty();
-            _roomManager.GetRoomMessages(roomId).Should().BeEmpty();
+            // Assert - Messages should be retained (3 hour delay)
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
+            participants.Should().BeEmpty();
+            
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
+            messages.Should().ContainSingle(); // Messages should still exist
         }
 
         [Fact]
-        public void RemoveParticipant_FromNonExistentRoom_ShouldNotThrow()
+        public async Task RemoveParticipantAsync_FromNonExistentRoom_ShouldNotThrow()
         {
             // Act
-            var action = () => _roomManager.RemoveParticipant("nonexistent", "user-1");
+            var action = async () => await _roomStateService.RemoveParticipantAsync("nonexistent", "user-1");
 
             // Assert
-            action.Should().NotThrow();
+            await action.Should().NotThrowAsync();
         }
 
         #endregion
@@ -118,15 +124,15 @@ namespace StreamSync.Tests.Services
         #region GetParticipant Tests
 
         [Fact]
-        public void GetParticipant_WithExistingParticipant_ShouldReturnParticipant()
+        public async Task GetParticipantAsync_WithExistingParticipant_ShouldReturnParticipant()
         {
             // Arrange
             var roomId = "room-123";
             var participant = new RoomParticipant("user-1", "conn-1", "User One", "avatar.jpg", true);
-            _roomManager.AddParticipant(roomId, participant);
+            await _roomStateService.AddParticipantAsync(roomId, participant);
 
             // Act
-            var result = _roomManager.GetParticipant(roomId, "user-1");
+            var result = await _roomStateService.GetParticipantAsync(roomId, "user-1");
 
             // Assert
             result.Should().NotBeNull();
@@ -136,24 +142,24 @@ namespace StreamSync.Tests.Services
         }
 
         [Fact]
-        public void GetParticipant_WithNonExistentParticipant_ShouldReturnNull()
+        public async Task GetParticipantAsync_WithNonExistentParticipant_ShouldReturnNull()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
 
             // Act
-            var result = _roomManager.GetParticipant(roomId, "nonexistent");
+            var result = await _roomStateService.GetParticipantAsync(roomId, "nonexistent");
 
             // Assert
             result.Should().BeNull();
         }
 
         [Fact]
-        public void GetParticipant_FromNonExistentRoom_ShouldReturnNull()
+        public async Task GetParticipantAsync_FromNonExistentRoom_ShouldReturnNull()
         {
             // Act
-            var result = _roomManager.GetParticipant("nonexistent", "user-1");
+            var result = await _roomStateService.GetParticipantAsync("nonexistent", "user-1");
 
             // Assert
             result.Should().BeNull();
@@ -164,22 +170,22 @@ namespace StreamSync.Tests.Services
         #region GetRoomParticipants Tests
 
         [Fact]
-        public void GetRoomParticipants_ShouldReturnParticipantsOrderedByJoinTime()
+        public async Task GetRoomParticipantsAsync_ShouldReturnParticipantsOrderedByJoinTime()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null);
-            Thread.Sleep(10); // Ensure different join times
+            await Task.Delay(10); // Ensure different join times
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null);
-            Thread.Sleep(10);
+            await Task.Delay(10);
             var participant3 = new RoomParticipant("user-3", "conn-3", "User Three", null);
 
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
-            _roomManager.AddParticipant(roomId, participant3);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant3);
 
             // Act
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
 
             // Assert
             participants.Should().HaveCount(3);
@@ -189,10 +195,10 @@ namespace StreamSync.Tests.Services
         }
 
         [Fact]
-        public void GetRoomParticipants_FromEmptyRoom_ShouldReturnEmptyList()
+        public async Task GetRoomParticipantsAsync_FromEmptyRoom_ShouldReturnEmptyList()
         {
             // Act
-            var participants = _roomManager.GetRoomParticipants("nonexistent");
+            var participants = await _roomStateService.GetRoomParticipantsAsync("nonexistent");
 
             // Assert
             participants.Should().BeEmpty();
@@ -203,17 +209,17 @@ namespace StreamSync.Tests.Services
         #region Control Management Tests
 
         [Fact]
-        public void GetController_ShouldReturnParticipantWithControl()
+        public async Task GetControllerAsync_ShouldReturnParticipantWithControl()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null, false);
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null, true);
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
 
             // Act
-            var controller = _roomManager.GetController(roomId);
+            var controller = await _roomStateService.GetControllerAsync(roomId);
 
             // Assert
             controller.Should().NotBeNull();
@@ -221,104 +227,104 @@ namespace StreamSync.Tests.Services
         }
 
         [Fact]
-        public void GetController_WithNoController_ShouldReturnNull()
+        public async Task GetControllerAsync_WithNoController_ShouldReturnNull()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null, false));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null, false));
 
             // Act
-            var controller = _roomManager.GetController(roomId);
+            var controller = await _roomStateService.GetControllerAsync(roomId);
 
             // Assert
             controller.Should().BeNull();
         }
 
         [Fact]
-        public void SetController_ShouldTransferControl()
+        public async Task SetControllerAsync_ShouldTransferControl()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null, true);
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null, false);
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
 
             // Act
-            _roomManager.SetController(roomId, "user-2");
+            await _roomStateService.SetControllerAsync(roomId, "user-2");
 
             // Assert
-            var p1 = _roomManager.GetParticipant(roomId, "user-1");
-            var p2 = _roomManager.GetParticipant(roomId, "user-2");
+            var p1 = await _roomStateService.GetParticipantAsync(roomId, "user-1");
+            var p2 = await _roomStateService.GetParticipantAsync(roomId, "user-2");
             p1!.HasControl.Should().BeFalse();
             p2!.HasControl.Should().BeTrue();
         }
 
         [Fact]
-        public void TransferControlToNext_ShouldGiveControlToOldestParticipant()
+        public async Task TransferControlToNextAsync_ShouldGiveControlToOldestParticipant()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null, true);
-            Thread.Sleep(10);
+            await Task.Delay(10);
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null, false);
-            Thread.Sleep(10);
+            await Task.Delay(10);
             var participant3 = new RoomParticipant("user-3", "conn-3", "User Three", null, false);
             
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
-            _roomManager.AddParticipant(roomId, participant3);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant3);
 
             // Act
-            _roomManager.TransferControlToNext(roomId, "user-1");
+            await _roomStateService.TransferControlToNextAsync(roomId, "user-1");
 
             // Assert
-            var newController = _roomManager.GetController(roomId);
+            var newController = await _roomStateService.GetControllerAsync(roomId);
             newController.Should().NotBeNull();
             newController!.Id.Should().Be("user-2");
             
-            var oldController = _roomManager.GetParticipant(roomId, "user-1");
+            var oldController = await _roomStateService.GetParticipantAsync(roomId, "user-1");
             oldController!.HasControl.Should().BeFalse();
         }
 
         [Fact]
-        public void EnsureControlConsistency_WithNoController_ShouldAssignToOldest()
+        public async Task EnsureControlConsistencyAsync_WithNoController_ShouldAssignToOldest()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null, false);
-            Thread.Sleep(10);
+            await Task.Delay(10);
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null, false);
             
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
 
             // Act
-            _roomManager.EnsureControlConsistency(roomId);
+            await _roomStateService.EnsureControlConsistencyAsync(roomId);
 
             // Assert
-            var controller = _roomManager.GetController(roomId);
+            var controller = await _roomStateService.GetControllerAsync(roomId);
             controller.Should().NotBeNull();
             controller!.Id.Should().Be("user-1");
         }
 
         [Fact]
-        public void EnsureControlConsistency_WithMultipleControllers_ShouldKeepOnlyOldest()
+        public async Task EnsureControlConsistencyAsync_WithMultipleControllers_ShouldKeepOnlyOldest()
         {
             // Arrange
             var roomId = "room-123";
             var participant1 = new RoomParticipant("user-1", "conn-1", "User One", null, true);
-            Thread.Sleep(10);
+            await Task.Delay(10);
             var participant2 = new RoomParticipant("user-2", "conn-2", "User Two", null, true);
             
-            _roomManager.AddParticipant(roomId, participant1);
-            _roomManager.AddParticipant(roomId, participant2);
+            await _roomStateService.AddParticipantAsync(roomId, participant1);
+            await _roomStateService.AddParticipantAsync(roomId, participant2);
 
             // Act
-            _roomManager.EnsureControlConsistency(roomId);
+            await _roomStateService.EnsureControlConsistencyAsync(roomId);
 
             // Assert
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             var controllers = participants.Where(p => p.HasControl).ToList();
             controllers.Should().ContainSingle();
             controllers.First().Id.Should().Be("user-1");
@@ -329,23 +335,23 @@ namespace StreamSync.Tests.Services
         #region Chat Management Tests
 
         [Fact]
-        public void AddMessage_ShouldAddMessageToRoom()
+        public async Task AddMessageAsync_ShouldAddMessageToRoom()
         {
             // Arrange
             var roomId = "room-123";
             var message = new ChatMessage("user-1", "User One", null, "Hello, world!");
 
             // Act
-            _roomManager.AddMessage(roomId, message);
+            await _roomStateService.AddMessageAsync(roomId, message);
 
             // Assert
-            var messages = _roomManager.GetRoomMessages(roomId);
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
             messages.Should().ContainSingle();
             messages.First().Content.Should().Be("Hello, world!");
         }
 
         [Fact]
-        public void AddMessage_ShouldEnforceMaxMessagesLimit()
+        public async Task AddMessageAsync_ShouldEnforceMaxMessagesLimit()
         {
             // Arrange
             var roomId = "room-123";
@@ -354,21 +360,21 @@ namespace StreamSync.Tests.Services
             // Act
             for (int i = 0; i < maxMessages + 10; i++)
             {
-                _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User", null, $"Message {i}"));
+                await _roomStateService.AddMessageAsync(roomId, new ChatMessage("user-1", "User", null, $"Message {i}"));
             }
 
             // Assert
-            var messages = _roomManager.GetRoomMessages(roomId);
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
             messages.Should().HaveCount(maxMessages);
             messages.First().Content.Should().Be("Message 10"); // First 10 should be dequeued
             messages.Last().Content.Should().Be("Message 59");
         }
 
         [Fact]
-        public void GetRoomMessages_FromEmptyRoom_ShouldReturnEmptyList()
+        public async Task GetRoomMessagesAsync_FromEmptyRoom_ShouldReturnEmptyList()
         {
             // Act
-            var messages = _roomManager.GetRoomMessages("nonexistent");
+            var messages = await _roomStateService.GetRoomMessagesAsync("nonexistent");
 
             // Assert
             messages.Should().BeEmpty();
@@ -379,26 +385,26 @@ namespace StreamSync.Tests.Services
         #region Participant Count Tests
 
         [Fact]
-        public void GetParticipantCount_ShouldReturnCorrectCount()
+        public async Task GetParticipantCountAsync_ShouldReturnCorrectCount()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-2", "conn-2", "User Two", null));
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-3", "conn-3", "User Three", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-2", "conn-2", "User Two", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-3", "conn-3", "User Three", null));
 
             // Act
-            var count = _roomManager.GetParticipantCount(roomId);
+            var count = await _roomStateService.GetParticipantCountAsync(roomId);
 
             // Assert
             count.Should().Be(3);
         }
 
         [Fact]
-        public void GetParticipantCount_ForEmptyRoom_ShouldReturnZero()
+        public async Task GetParticipantCountAsync_ForEmptyRoom_ShouldReturnZero()
         {
             // Act
-            var count = _roomManager.GetParticipantCount("nonexistent");
+            var count = await _roomStateService.GetParticipantCountAsync("nonexistent");
 
             // Assert
             count.Should().Be(0);
@@ -409,38 +415,38 @@ namespace StreamSync.Tests.Services
         #region IsParticipantInRoom Tests
 
         [Fact]
-        public void IsParticipantInRoom_WithExistingParticipant_ShouldReturnTrue()
+        public async Task IsParticipantInRoomAsync_WithExistingParticipant_ShouldReturnTrue()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
 
             // Act
-            var result = _roomManager.IsParticipantInRoom(roomId, "user-1");
+            var result = await _roomStateService.IsParticipantInRoomAsync(roomId, "user-1");
 
             // Assert
             result.Should().BeTrue();
         }
 
         [Fact]
-        public void IsParticipantInRoom_WithNonExistentParticipant_ShouldReturnFalse()
+        public async Task IsParticipantInRoomAsync_WithNonExistentParticipant_ShouldReturnFalse()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
 
             // Act
-            var result = _roomManager.IsParticipantInRoom(roomId, "nonexistent");
+            var result = await _roomStateService.IsParticipantInRoomAsync(roomId, "nonexistent");
 
             // Assert
             result.Should().BeFalse();
         }
 
         [Fact]
-        public void IsParticipantInRoom_InNonExistentRoom_ShouldReturnFalse()
+        public async Task IsParticipantInRoomAsync_InNonExistentRoom_ShouldReturnFalse()
         {
             // Act
-            var result = _roomManager.IsParticipantInRoom("nonexistent", "user-1");
+            var result = await _roomStateService.IsParticipantInRoomAsync("nonexistent", "user-1");
 
             // Assert
             result.Should().BeFalse();
@@ -451,105 +457,82 @@ namespace StreamSync.Tests.Services
         #region Room Cleanup Tests
 
         [Fact]
-        public void ClearRoomData_ShouldRemoveAllRoomData()
+        public async Task ClearRoomDataAsync_ShouldRemoveAllRoomData()
         {
             // Arrange
             var roomId = "room-123";
-            _roomManager.AddParticipant(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User One", null, "Hello"));
+            await _roomStateService.AddParticipantAsync(roomId, new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddMessageAsync(roomId, new ChatMessage("user-1", "User One", null, "Hello"));
 
             // Act
-            _roomManager.ClearRoomData(roomId);
+            await _roomStateService.ClearRoomDataAsync(roomId);
 
             // Assert
-            _roomManager.GetRoomParticipants(roomId).Should().BeEmpty();
-            _roomManager.GetRoomMessages(roomId).Should().BeEmpty();
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
+            participants.Should().BeEmpty();
+            messages.Should().BeEmpty();
         }
 
         [Fact]
-        public void GetActiveRoomIds_ShouldReturnAllActiveRooms()
+        public async Task GetActiveRoomIdsAsync_ShouldReturnAllActiveRooms()
         {
             // Arrange
-            _roomManager.AddParticipant("room-1", new RoomParticipant("user-1", "conn-1", "User One", null));
-            _roomManager.AddParticipant("room-2", new RoomParticipant("user-2", "conn-2", "User Two", null));
-            _roomManager.AddParticipant("room-3", new RoomParticipant("user-3", "conn-3", "User Three", null));
+            await _roomStateService.AddParticipantAsync("room-1", new RoomParticipant("user-1", "conn-1", "User One", null));
+            await _roomStateService.AddParticipantAsync("room-2", new RoomParticipant("user-2", "conn-2", "User Two", null));
+            await _roomStateService.AddParticipantAsync("room-3", new RoomParticipant("user-3", "conn-3", "User Three", null));
 
             // Act
-            var activeRooms = _roomManager.GetActiveRoomIds();
+            var activeRooms = await _roomStateService.GetActiveRoomIdsAsync();
 
             // Assert
             activeRooms.Should().HaveCount(3);
             activeRooms.Should().Contain(new[] { "room-1", "room-2", "room-3" });
         }
 
+        #endregion
+
+        #region Thread Safety Tests
+
         [Fact]
-        public void CleanupEmptyRooms_ShouldRemoveEmptyRooms()
+        public async Task ConcurrentAddParticipants_ShouldBeThreadSafe()
         {
             // Arrange
-            _roomManager.AddParticipant("room-1", new RoomParticipant("user-1", "conn-1", "User One", null));
-            _roomManager.AddParticipant("room-2", new RoomParticipant("user-2", "conn-2", "User Two", null));
-            
-            // Make room-1 empty
-            _roomManager.RemoveParticipant("room-1", "user-1");
+            var roomId = "room-123";
 
             // Act
-            _roomManager.CleanupEmptyRooms();
+            var tasks = Enumerable.Range(0, 100).Select(i =>
+            {
+                var userId = $"user-{i}";
+                return _roomStateService.AddParticipantAsync(roomId, new RoomParticipant(userId, $"conn-{userId}", $"User {userId}", null));
+            });
+
+            await Task.WhenAll(tasks);
 
             // Assert
-            var activeRooms = _roomManager.GetActiveRoomIds();
-            activeRooms.Should().ContainSingle();
-            activeRooms.Should().Contain("room-2");
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
+            participants.Should().HaveCount(100);
+        }
+
+        [Fact]
+        public async Task ConcurrentAddMessages_ShouldBeThreadSafe()
+        {
+            // Arrange
+            var roomId = "room-123";
+
+            // Act
+            var tasks = Enumerable.Range(0, 100).Select(messageId =>
+            {
+                return _roomStateService.AddMessageAsync(roomId, new ChatMessage("user-1", "User", null, $"Message {messageId}"));
+            });
+
+            await Task.WhenAll(tasks);
+
+            // Assert
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
+            messages.Should().HaveCount(50); // Should be limited to MAX_MESSAGES_PER_ROOM
         }
 
         #endregion
-
-#region Thread Safety Tests
-
-[Fact]
-public async Task ConcurrentAddParticipants_ShouldBeThreadSafe()
-{
-    // Arrange
-    var roomId = "room-123";
-
-    // Act
-    var tasks = Enumerable.Range(0, 100).Select(i =>
-    {
-        var userId = $"user-{i}";
-        return Task.Run(() =>
-        {
-            _roomManager.AddParticipant(roomId, new RoomParticipant(userId, $"conn-{userId}", $"User {userId}", null));
-        });
-    });
-
-    await Task.WhenAll(tasks);
-
-    // Assert
-    var participants = _roomManager.GetRoomParticipants(roomId);
-    participants.Should().HaveCount(100);
-}
-
-[Fact]
-public async Task ConcurrentAddMessages_ShouldBeThreadSafe()
-{
-    // Arrange
-    var roomId = "room-123";
-
-    // Act
-    var tasks = Enumerable.Range(0, 100).Select(messageId =>
-    {
-        return Task.Run(() =>
-        {
-            _roomManager.AddMessage(roomId, new ChatMessage("user-1", "User", null, $"Message {messageId}"));
-        });
-    });
-
-    await Task.WhenAll(tasks);
-
-    // Assert
-    var messages = _roomManager.GetRoomMessages(roomId);
-    messages.Should().HaveCount(50); // Should be limited to MAX_MESSAGES_PER_ROOM
-}
-
-#endregion
     }
 }

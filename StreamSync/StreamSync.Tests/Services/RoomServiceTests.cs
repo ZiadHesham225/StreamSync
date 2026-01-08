@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using StreamSync.Services.Interfaces;
 using StreamSync.Services;
-using StreamSync.Services.InMemory;
 using StreamSync.Data;
 using StreamSync.DataAccess.Interfaces;
 using StreamSync.DTOs;
@@ -16,7 +15,7 @@ namespace StreamSync.Tests.Services
         private readonly Mock<UserManager<ApplicationUser>> _mockUserManager;
         private readonly Mock<IVirtualBrowserQueueService> _mockQueueService;
         private readonly Mock<ILogger<RoomService>> _mockLogger;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly Mock<IRoomStateService> _mockRoomStateService;
         private readonly RoomService _roomService;
 
         public RoomServiceTests()
@@ -25,13 +24,13 @@ namespace StreamSync.Tests.Services
             _mockUserManager = CreateMockUserManager();
             _mockQueueService = new Mock<IVirtualBrowserQueueService>();
             _mockLogger = new Mock<ILogger<RoomService>>();
-            _roomManager = new InMemoryRoomManager();
+            _mockRoomStateService = new Mock<IRoomStateService>();
 
             _roomService = new RoomService(
                 _mockUnitOfWork.Object,
                 _mockUserManager.Object,
                 _mockQueueService.Object,
-                _roomManager,
+                _mockRoomStateService.Object,
                 _mockLogger.Object);
         }
 
