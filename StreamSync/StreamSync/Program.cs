@@ -13,8 +13,8 @@ namespace StreamSync
 
             builder.Services.AddDatabaseAndIdentity(builder.Configuration);
             builder.Services.AddJwtAuthentication(builder.Configuration);
-            builder.Services.AddApplicationServices();
-            builder.Services.AddConfiguredSignalR();
+            builder.Services.AddApplicationServices(builder.Configuration);
+            builder.Services.AddConfiguredSignalR(builder.Configuration);
             builder.Services.AddConfiguredControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerDocumentation();

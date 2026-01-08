@@ -2,11 +2,13 @@ using Microsoft.Extensions.DependencyInjection;
 using StreamSync.Services.Interfaces;
 using StreamSync.Services;
 using StreamSync.Services.InMemory;
+using StreamSync.Services.Redis;
 using StreamSync.DataAccess.Interfaces;
 using StreamSync.DataAccess.Repositories;
 using StreamSync.Models;
 using StreamSync.Data;
 using StreamSync.Hubs;
+using StackExchange.Redis;
 
 namespace StreamSync.Extensions
 {
@@ -14,8 +16,36 @@ namespace StreamSync.Extensions
     {
         public static IServiceCollection AddApplicationServices(this IServiceCollection services)
         {
-            // In-memory services
-            services.AddSingleton<InMemoryRoomManager>();
+            return services;
+        }
+
+        public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
+        {
+            // Redis or In-Memory room state service
+            var redisConnectionString = configuration.GetConnectionString("Redis");
+            if (!string.IsNullOrEmpty(redisConnectionString))
+            {
+                // Use Redis for room state (Phase 2)
+                services.AddSingleton<IConnectionMultiplexer>(sp =>
+                {
+                    var logger = sp.GetRequiredService<ILogger<RedisRoomStateService>>();
+                    try
+                    {
+                        return ConnectionMultiplexer.Connect(redisConnectionString);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to connect to Redis. Falling back to in-memory storage.");
+                        throw;
+                    }
+                });
+                services.AddSingleton<IRoomStateService, RedisRoomStateService>();
+            }
+            else
+            {
+                // Fallback to in-memory storage
+                services.AddSingleton<IRoomStateService, InMemoryRoomStateService>();
+            }
 
             // Repository and service registrations
             services.AddScoped<IUnitOfWork, UnitOfWork>();
