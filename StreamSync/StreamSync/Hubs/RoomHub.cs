@@ -7,7 +7,6 @@ using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Models;
 using StreamSync.Models.InMemory;
-using StreamSync.Services.InMemory;
 
 namespace StreamSync.Hubs
 {
@@ -17,6 +16,7 @@ namespace StreamSync.Hubs
     /// - IRoomParticipantService: Participant management and notifications
     /// - IChatService: Chat message handling
     /// - IPlaybackService: Video playback synchronization
+    /// - IRoomStateService: Room state management (Redis or in-memory)
     /// </summary>
     public class RoomHub : Hub<IRoomClient>
     {
@@ -24,7 +24,7 @@ namespace StreamSync.Hubs
         private readonly IRoomParticipantService _participantService;
         private readonly IChatService _chatService;
         private readonly IPlaybackService _playbackService;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly ILogger<RoomHub> _logger;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IServiceProvider _serviceProvider;
@@ -37,7 +37,7 @@ namespace StreamSync.Hubs
             IRoomParticipantService participantService,
             IChatService chatService,
             IPlaybackService playbackService,
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             ILogger<RoomHub> logger,
             UserManager<ApplicationUser> userManager,
             IServiceProvider serviceProvider)
@@ -46,7 +46,7 @@ namespace StreamSync.Hubs
             _participantService = participantService;
             _chatService = chatService;
             _playbackService = playbackService;
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _logger = logger;
             _userManager = userManager;
             _serviceProvider = serviceProvider;
@@ -132,15 +132,15 @@ namespace StreamSync.Hubs
                 
                 _logger.LogInformation($"Authenticated user participant ID: {participantId}");
 
-                var currentParticipants = _roomManager.GetRoomParticipants(roomId);
+                var currentParticipants = await _roomStateService.GetRoomParticipantsAsync(roomId);
                 _logger.LogInformation($"BEFORE JOIN - Room {roomId} has {currentParticipants.Count} participants: [{string.Join(", ", currentParticipants.Select(p => $"{p.DisplayName}({p.Id})"))}]");
                 
-                var existingParticipant = _roomManager.GetParticipant(roomId, participantId);
+                var existingParticipant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (existingParticipant != null)
                 {
                     _logger.LogInformation($"Participant {participantId} ({user.UserName}) is reconnecting - updating connection ID and preserving state. HasControl: {existingParticipant.HasControl}");
                     
-                    existingParticipant.ConnectionId = Context.ConnectionId;
+                    await _roomStateService.UpdateParticipantConnectionIdAsync(roomId, participantId, Context.ConnectionId);
                     
                     await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
 
@@ -150,7 +150,7 @@ namespace StreamSync.Hubs
 
                     await Clients.Caller.RoomJoined(roomId, participantId, existingParticipant.DisplayName, existingParticipant.AvatarUrl ?? "");
                     
-                    _roomManager.EnsureControlConsistency(roomId);
+                    await _roomStateService.EnsureControlConsistencyAsync(roomId);
                     
                     // Use participantService to broadcast updated participant list
                     await _participantService.BroadcastParticipantsAsync(roomId);
@@ -167,7 +167,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                bool isFirstParticipant = _roomManager.GetParticipantCount(roomId) == 0;
+                bool isFirstParticipant = await _roomStateService.GetParticipantCountAsync(roomId) == 0;
                 bool shouldHaveControl = isAdmin || isFirstParticipant;
 
                 _logger.LogInformation($"Participant {participantId} ({user.UserName}) joining room {roomId}. IsAdmin: {isAdmin}, IsFirstParticipant: {isFirstParticipant}, ShouldHaveControl: {shouldHaveControl}");
@@ -182,10 +182,10 @@ namespace StreamSync.Hubs
 
                 if (isAdmin && !isFirstParticipant)
                 {
-                    var currentController = _roomManager.GetController(roomId);
+                    var currentController = await _roomStateService.GetControllerAsync(roomId);
                     if (currentController != null && currentController.Id != participantId)
                     {
-                        _roomManager.SetController(roomId, participantId);
+                        await _roomStateService.SetControllerAsync(roomId, participantId);
                         shouldHaveControl = true;
                         participant.HasControl = true;
                         
@@ -193,12 +193,12 @@ namespace StreamSync.Hubs
                     }
                 }
 
-                _roomManager.AddParticipant(roomId, participant);
+                await _roomStateService.AddParticipantAsync(roomId, participant);
 
-                var participantsAfterAdd = _roomManager.GetRoomParticipants(roomId);
+                var participantsAfterAdd = await _roomStateService.GetRoomParticipantsAsync(roomId);
                 _logger.LogInformation($"AFTER ADD - Room {roomId} has {participantsAfterAdd.Count} participants: [{string.Join(", ", participantsAfterAdd.Select(p => $"{p.DisplayName}({p.Id})"))}]");
 
-                _roomManager.EnsureControlConsistency(roomId);
+                await _roomStateService.EnsureControlConsistencyAsync(roomId);
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
 
@@ -245,21 +245,22 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 bool wasController = participant?.HasControl ?? false;
 
-                _roomManager.RemoveParticipant(roomId, participantId);
+                await _roomStateService.RemoveParticipantAsync(roomId, participantId);
 
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
 
-                if (wasController && _roomManager.GetParticipantCount(roomId) > 0)
+                var participantCount = await _roomStateService.GetParticipantCountAsync(roomId);
+                if (wasController && participantCount > 0)
                 {
                     _logger.LogInformation($"Controller {participantId} left room {roomId}, transferring control to next participant");
-                    _roomManager.TransferControlToNext(roomId, participantId);
+                    await _roomStateService.TransferControlToNextAsync(roomId, participantId);
                     
-                    _roomManager.EnsureControlConsistency(roomId);
+                    await _roomStateService.EnsureControlConsistencyAsync(roomId);
                     
-                    var newController = _roomManager.GetController(roomId);
+                    var newController = await _roomStateService.GetControllerAsync(roomId);
                     if (newController != null)
                     {
                         await Clients.Group(roomId).ControlTransferred(newController.Id, newController.DisplayName);
@@ -274,7 +275,8 @@ namespace StreamSync.Hubs
                 await Clients.OthersInGroup(roomId).RoomLeft(roomId, participantId, displayName);
                 await Clients.OthersInGroup(roomId).ParticipantLeftNotification(displayName);
 
-                if (_roomManager.GetParticipantCount(roomId) > 0)
+                participantCount = await _roomStateService.GetParticipantCountAsync(roomId);
+                if (participantCount > 0)
                 {
                     await _participantService.BroadcastParticipantsAsync(roomId);
                 }
@@ -283,9 +285,9 @@ namespace StreamSync.Hubs
                 Context.Items.Remove("ParticipantId");
                 Context.Items.Remove("DisplayName");
 
-                if (_roomManager.GetParticipantCount(roomId) == 0)
+                if (participantCount == 0)
                 {
-                    _roomManager.ClearRoomData(roomId);
+                    await _roomStateService.ClearRoomDataAsync(roomId);
                     _positionReports.TryRemove(roomId, out _);
                 }
 
@@ -302,7 +304,7 @@ namespace StreamSync.Hubs
         {
             try
             {
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (participant == null)
                 {
                     _logger.LogInformation($"Participant {participantId} already left room {roomId}");
@@ -312,16 +314,17 @@ namespace StreamSync.Hubs
                 string displayName = participant.DisplayName;
                 bool wasController = participant.HasControl;
 
-                _roomManager.RemoveParticipant(roomId, participantId);
+                await _roomStateService.RemoveParticipantAsync(roomId, participantId);
 
-                if (wasController && _roomManager.GetParticipantCount(roomId) > 0)
+                var participantCount = await _roomStateService.GetParticipantCountAsync(roomId);
+                if (wasController && participantCount > 0)
                 {
                     _logger.LogInformation($"Controller {participantId} left room {roomId}, transferring control to next participant");
-                    _roomManager.TransferControlToNext(roomId, participantId);
+                    await _roomStateService.TransferControlToNextAsync(roomId, participantId);
                     
-                    _roomManager.EnsureControlConsistency(roomId);
+                    await _roomStateService.EnsureControlConsistencyAsync(roomId);
                     
-                    var newController = _roomManager.GetController(roomId);
+                    var newController = await _roomStateService.GetControllerAsync(roomId);
                     if (newController != null)
                     {
                         await _participantService.NotifyControlTransferredAsync(roomId, newController.Id, newController.DisplayName);
@@ -335,14 +338,15 @@ namespace StreamSync.Hubs
 
                 await _participantService.NotifyParticipantLeftAsync(roomId, participantId, displayName);
 
-                if (_roomManager.GetParticipantCount(roomId) > 0)
+                participantCount = await _roomStateService.GetParticipantCountAsync(roomId);
+                if (participantCount > 0)
                 {
                     await _participantService.BroadcastParticipantsAsync(roomId);
                 }
 
-                if (_roomManager.GetParticipantCount(roomId) == 0)
+                if (participantCount == 0)
                 {
-                    _roomManager.ClearRoomData(roomId);
+                    await _roomStateService.ClearRoomDataAsync(roomId);
                     _positionReports.TryRemove(roomId, out _);
                 }
 
@@ -398,7 +402,7 @@ namespace StreamSync.Hubs
 
                 await Clients.Group(roomId).RoomClosed(roomId, "Room closed by admin");
 
-                _roomManager.ClearRoomData(roomId);
+                await _roomStateService.ClearRoomDataAsync(roomId);
                 _positionReports.TryRemove(roomId, out _);
                 _logger.LogInformation($"Room {roomId} closed by admin {userId}");
             }
@@ -421,7 +425,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (participant == null)
                 {
                     await Clients.Caller.Error("You are not in this room.");
@@ -463,7 +467,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (participant == null || !participant.HasControl)
                 {
                     await Clients.Caller.Error("You don't have permission to control playback.");
@@ -516,7 +520,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (participant != null && participant.HasControl)
                 {
                     await _roomService.UpdatePlaybackStateAsync(roomId, participantId, position, true);
@@ -541,7 +545,7 @@ namespace StreamSync.Hubs
 
                 reports[Context.ConnectionId] = position;
 
-                int totalParticipants = _roomManager.GetParticipantCount(roomId);
+                int totalParticipants = await _roomStateService.GetParticipantCountAsync(roomId);
                 int reportedParticipants = reports.Count;
 
                 if (reportedParticipants >= totalParticipants * 0.8 && reportedParticipants >= 2)
@@ -601,7 +605,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 
                 bool isAdmin = await _roomService.IsUserAdminAsync(roomId, participantId);
                 if (participant == null || (!participant.HasControl && !isAdmin))
@@ -642,7 +646,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 
                 bool isAdmin = await _roomService.IsUserAdminAsync(roomId, participantId);
                 if (participant == null || (!participant.HasControl && !isAdmin))
@@ -683,7 +687,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 
                 bool isAdmin = await _roomService.IsUserAdminAsync(roomId, participantId);
                 if (participant == null || (!participant.HasControl && !isAdmin))
@@ -731,7 +735,7 @@ namespace StreamSync.Hubs
                 _logger.LogInformation($"TransferControl called. CurrentUserId: {currentUserId}, NewControllerId: {newControllerId}, RoomId: {roomId}");
 
                 bool isAdmin = await _roomService.IsUserAdminAsync(roomId, currentUserId);
-                var currentParticipant = _roomManager.GetParticipant(roomId, currentUserId);
+                var currentParticipant = await _roomStateService.GetParticipantAsync(roomId, currentUserId);
                 bool hasControl = currentParticipant?.HasControl ?? false;
                 
                 _logger.LogInformation($"Current participant: {currentParticipant?.DisplayName ?? "NOT_FOUND"}, HasControl: {hasControl}, IsAdmin: {isAdmin}");
@@ -743,14 +747,14 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var newController = _roomManager.GetParticipant(roomId, newControllerId);
+                var newController = await _roomStateService.GetParticipantAsync(roomId, newControllerId);
                 if (newController == null)
                 {
                     await Clients.Caller.Error("Target participant not found in room.");
                     return;
                 }
 
-                _roomManager.SetController(roomId, newControllerId);
+                await _roomStateService.SetControllerAsync(roomId, newControllerId);
                 
                 await _participantService.NotifyControlTransferredAsync(roomId, newControllerId, newController.DisplayName);
                 await _participantService.BroadcastParticipantsAsync(roomId);
@@ -785,7 +789,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participant = _roomManager.GetParticipant(roomId, participantId);
+                var participant = await _roomStateService.GetParticipantAsync(roomId, participantId);
                 if (participant == null)
                 {
                     await Clients.Caller.Error("You are no longer in this room.");
@@ -827,7 +831,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var participantToKick = _roomManager.GetParticipant(roomId, userIdToKick);
+                var participantToKick = await _roomStateService.GetParticipantAsync(roomId, userIdToKick);
                 if (participantToKick == null)
                 {
                     await Clients.Caller.Error("User not found in room.");
@@ -840,7 +844,7 @@ namespace StreamSync.Hubs
                     return;
                 }
 
-                var adminParticipant = _roomManager.GetParticipant(roomId, adminId);
+                var adminParticipant = await _roomStateService.GetParticipantAsync(roomId, adminId);
                 var adminDisplayName = adminParticipant?.DisplayName ?? "Admin";
 
                 // Store connection ID before removing participant
@@ -848,7 +852,7 @@ namespace StreamSync.Hubs
 
                 await Clients.User(userIdToKick).UserKicked(roomId, $"You have been kicked from the room by {adminDisplayName}");
 
-                _roomManager.RemoveParticipant(roomId, userIdToKick);
+                await _roomStateService.RemoveParticipantAsync(roomId, userIdToKick);
 
                 // Remove the kicked user from the SignalR group so they can rejoin cleanly
                 if (!string.IsNullOrEmpty(kickedConnectionId))

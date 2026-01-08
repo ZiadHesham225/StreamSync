@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using StreamSync.Services.Interfaces;
-using StreamSync.Services.InMemory;
 using StreamSync.DTOs;
 using StreamSync.Models;
 using StreamSync.Models.InMemory;
@@ -15,27 +14,27 @@ namespace StreamSync.Controllers
     public class RoomController : BaseApiController
     {
         private readonly IRoomService _roomService;
-        private readonly InMemoryRoomManager _roomManager;
+        private readonly IRoomStateService _roomStateService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<RoomController> _logger;
 
         public RoomController(
             IRoomService roomService,
-            InMemoryRoomManager roomManager,
+            IRoomStateService roomStateService,
             UserManager<ApplicationUser> userManager,
             ILogger<RoomController> logger)
         {
             _roomService = roomService;
-            _roomManager = roomManager;
+            _roomStateService = roomStateService;
             _userManager = userManager;
             _logger = logger;
         }
 
-        private void EnhanceRoomsWithUserCount(IEnumerable<RoomDto> rooms)
+        private async Task EnhanceRoomsWithUserCountAsync(IEnumerable<RoomDto> rooms)
         {
             foreach (var room in rooms)
             {
-                room.UserCount = _roomManager.GetParticipantCount(room.Id);
+                room.UserCount = await _roomStateService.GetParticipantCountAsync(room.Id);
             }
         }
 
@@ -58,13 +57,13 @@ namespace StreamSync.Controllers
             if (pagination != null)
             {
                 var pagedResult = await _roomService.GetActiveRoomsAsync(pagination);
-                EnhanceRoomsWithUserCount(pagedResult.Data);
+                await EnhanceRoomsWithUserCountAsync(pagedResult.Data);
                 return Ok(pagedResult);
             }
             else
             {
                 var rooms = await _roomService.GetActiveRoomsAsync();
-                EnhanceRoomsWithUserCount(rooms);
+                await EnhanceRoomsWithUserCountAsync(rooms);
                 return Ok(rooms);
             }
         }
@@ -78,7 +77,7 @@ namespace StreamSync.Controllers
                 return NotFound("Room not found");
             }
 
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             var participantDtos = participants.Select(p => MapToParticipantDto(p, room.AdminId)).ToList();
 
             return Ok(participantDtos);
@@ -93,7 +92,7 @@ namespace StreamSync.Controllers
                 return NotFound("Room not found");
             }
 
-            var messages = _roomManager.GetRoomMessages(roomId);
+            var messages = await _roomStateService.GetRoomMessagesAsync(roomId);
             var messageDtos = messages.Select(m => new ChatMessageDto
             {
                 Id = m.Id,
@@ -120,13 +119,13 @@ namespace StreamSync.Controllers
             if (pagination != null)
             {
                 var pagedResult = await _roomService.GetUserRoomsAsync(userId, pagination);
-                EnhanceRoomsWithUserCount(pagedResult.Data);
+                await EnhanceRoomsWithUserCountAsync(pagedResult.Data);
                 return Ok(pagedResult);
             }
             else
             {
                 var rooms = await _roomService.GetUserRoomsAsync(userId);
-                EnhanceRoomsWithUserCount(rooms);
+                await EnhanceRoomsWithUserCountAsync(rooms);
                 return Ok(rooms);
             }
         }
@@ -143,7 +142,7 @@ namespace StreamSync.Controllers
             var admin = await _userManager.FindByIdAsync(room.AdminId);
             var adminName = admin?.DisplayName ?? admin?.UserName ?? "Unknown";
 
-            var participants = _roomManager.GetRoomParticipants(roomId);
+            var participants = await _roomStateService.GetRoomParticipantsAsync(roomId);
             var participantDtos = participants.Select(p => MapToParticipantDto(p, room.AdminId)).ToList();
 
             var roomDetailDto = new RoomDetailDto
@@ -297,13 +296,13 @@ namespace StreamSync.Controllers
                 return Forbid("Only room administrators can transfer control.");
             }
 
-            var targetParticipant = _roomManager.GetParticipant(roomId, transferDto.NewControllerId);
+            var targetParticipant = await _roomStateService.GetParticipantAsync(roomId, transferDto.NewControllerId);
             if (targetParticipant == null)
             {
                 return BadRequest("Target participant not found in room.");
             }
 
-            _roomManager.SetController(roomId, transferDto.NewControllerId);
+            await _roomStateService.SetControllerAsync(roomId, transferDto.NewControllerId);
 
             return Ok(new { message = "Control transferred successfully" });
         }
@@ -324,13 +323,13 @@ namespace StreamSync.Controllers
                 return Forbid("Only room administrators can take control.");
             }
 
-            var adminParticipant = _roomManager.GetParticipant(roomId, userId);
+            var adminParticipant = await _roomStateService.GetParticipantAsync(roomId, userId);
             if (adminParticipant == null)
             {
                 return BadRequest("You must be in the room to take control.");
             }
 
-            _roomManager.SetController(roomId, userId);
+            await _roomStateService.SetControllerAsync(roomId, userId);
 
             return Ok(new { message = "Control taken successfully" });
         }
