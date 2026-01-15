@@ -3,7 +3,9 @@ using StreamSync.Services.Interfaces;
 using StreamSync.Services;
 using StreamSync.Services.InMemory;
 using StreamSync.Services.Redis;
+using StreamSync.Services.Decorators;
 using StreamSync.DataAccess.Interfaces;
+using StreamSync.DataAccess.Cache;
 using StreamSync.DataAccess.Repositories;
 using StreamSync.Models;
 using StreamSync.Data;
@@ -21,24 +23,31 @@ namespace StreamSync.Extensions
 
         public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Redis or In-Memory room state service
+            // Redis connection and caching configuration
             var redisConnectionString = configuration.GetConnectionString("Redis");
-            if (!string.IsNullOrEmpty(redisConnectionString))
+            var useRedis = !string.IsNullOrEmpty(redisConnectionString);
+
+            if (useRedis)
             {
-                // Use Redis for room state (Phase 2)
+                // Redis connection multiplexer (singleton)
                 services.AddSingleton<IConnectionMultiplexer>(sp =>
                 {
-                    var logger = sp.GetRequiredService<ILogger<RedisRoomStateService>>();
+                    var logger = sp.GetRequiredService<ILogger<RedisCacheService>>();
                     try
                     {
-                        return ConnectionMultiplexer.Connect(redisConnectionString);
+                        return ConnectionMultiplexer.Connect(redisConnectionString!);
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to connect to Redis. Falling back to in-memory storage.");
+                        logger.LogWarning(ex, "Failed to connect to Redis. Caching will be disabled.");
                         throw;
                     }
                 });
+
+                // Cache service (infrastructure layer for distributed caching)
+                services.AddSingleton<ICacheService, RedisCacheService>();
+
+                // Room state service (uses Redis)
                 services.AddSingleton<IRoomStateService, RedisRoomStateService>();
             }
             else
@@ -47,14 +56,25 @@ namespace StreamSync.Extensions
                 services.AddSingleton<IRoomStateService, InMemoryRoomStateService>();
             }
 
-            // Repository and service registrations
+            // Repository registrations
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IRoomRepository, RoomRepository>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IEmailService, EmailService>();
+
+            // Core services registration
             services.AddScoped<IRoomService, RoomService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IYouTubeService, YouTubeService>();
-            services.AddScoped<IRoomRepository, RoomRepository>();
+
+            // Apply caching decorators using Scrutor (when Redis is available)
+            if (useRedis)
+            {
+                services.Decorate<IRoomService, RoomServiceCachingDecorator>();
+                services.Decorate<IUserService, UserServiceCachingDecorator>();
+                services.Decorate<IYouTubeService, YouTubeServiceCachingDecorator>();
+            }
+
             services.AddScoped<IGenericRepository<Room>, GenericRepository<Room>>();
             services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
             services.AddScoped<ITokenService, JwtTokenService>();
@@ -66,7 +86,17 @@ namespace StreamSync.Extensions
 
             // Virtual Browser services
             services.AddScoped<IVirtualBrowserRepository, VirtualBrowserRepository>();
-            services.AddSingleton<IVirtualBrowserQueueService, VirtualBrowserQueueService>();
+            
+            // Virtual Browser Queue - Redis for horizontal scaling, in-memory for single instance
+            if (useRedis)
+            {
+                services.AddSingleton<IVirtualBrowserQueueService, RedisVirtualBrowserQueueService>();
+            }
+            else
+            {
+                services.AddSingleton<IVirtualBrowserQueueService, InMemoryVirtualBrowserQueueService>();
+            }
+            
             services.AddScoped<IVirtualBrowserNotificationService, VirtualBrowserNotificationService>();
 
             // Container configuration and health services
