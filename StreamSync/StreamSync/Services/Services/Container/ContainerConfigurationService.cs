@@ -8,12 +8,15 @@ namespace StreamSync.Services
         private readonly ILogger<ContainerConfigurationService> _logger;
         private readonly IConfiguration _configuration;
         private readonly string _nekoImage;
+        private readonly string _hostAddress;
 
         public ContainerConfigurationService(ILogger<ContainerConfigurationService> logger, IConfiguration configuration)
         {
             _logger = logger;
             _configuration = configuration;
             _nekoImage = _configuration["NekoContainer:Image"] ?? "ghcr.io/m1k1o/neko/chromium:latest";
+            // HostAddress: Use configured value, or fallback to localhost for single-server deployments
+            _hostAddress = _configuration["NekoContainer:HostAddress"] ?? "localhost";
         }
 
         public ContainerConfig GetContainerConfig(int containerIndex)
@@ -31,7 +34,8 @@ namespace StreamSync.Services
                 UdpPortStart = 59000 + (containerIndex * 100),
                 UdpPortEnd = 59000 + (containerIndex * 100) + 99,
                 NekoPassword = $"neko-admin",
-                NekoAdminPassword = $"neko-admin"
+                NekoAdminPassword = $"neko-admin",
+                HostAddress = _hostAddress
             };
 
             _logger.LogDebug("Generated container config for index {ContainerIndex}: {ContainerName} on HTTP port {HttpPort}, UDP ports {UdpStart}-{UdpEnd}",
@@ -57,7 +61,7 @@ namespace StreamSync.Services
       - NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD={config.NekoAdminPassword}
       - NEKO_WEBRTC_EPR={config.UdpPortStart}-{config.UdpPortEnd}
       - NEKO_WEBRTC_ICELITE=1
-      - NEKO_WEBRTC_NAT1TO1=127.0.0.1
+      - NEKO_WEBRTC_NAT1TO1={config.HostAddress}
       # Audio configuration
       - NEKO_AUDIO_CODEC=opus
       - NEKO_AUDIO_BITRATE=128000
@@ -134,6 +138,12 @@ networks:
         public int UdpPortEnd { get; set; }
         public string NekoPassword { get; set; } = string.Empty;
         public string NekoAdminPassword { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// The host address (IP or hostname) for this server.
+        /// Used for WebRTC NAT traversal and cross-server container access.
+        /// </summary>
+        public string HostAddress { get; set; } = "localhost";
 
         public override string ToString()
         {

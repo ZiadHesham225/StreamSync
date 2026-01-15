@@ -100,6 +100,7 @@ namespace StreamSync.Services
                         UdpPortEnd = config.UdpPortEnd,
                         NekoPassword = config.NekoPassword,
                         NekoAdminPassword = config.NekoAdminPassword,
+                        HostAddress = config.HostAddress,
                         ComposeFile = tempComposeFile,
                         CreatedAt = DateTime.UtcNow,
                         IsHealthy = true

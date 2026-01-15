@@ -13,6 +13,13 @@ namespace StreamSync.Common
         public string NekoPassword { get; set; } = string.Empty;
         public string NekoAdminPassword { get; set; } = string.Empty;
         
+        /// <summary>
+        /// The host address (IP or hostname) where this container is running.
+        /// Used for cross-server container access in horizontally scaled deployments.
+        /// Defaults to localhost for single-server setups.
+        /// </summary>
+        public string HostAddress { get; set; } = "localhost";
+        
         public DateTime AllocatedAt { get; set; }
         public bool IsAllocated => AllocatedAt != DateTime.MinValue;
         
@@ -20,7 +27,7 @@ namespace StreamSync.Common
         public DateTime CreatedAt { get; set; }
         public bool IsHealthy { get; set; }
         
-        public string BrowserUrl => $"http://localhost:{HttpPort}";
-        public string WebRtcUrl => $"ws://localhost:{HttpPort}/ws";
+        public string BrowserUrl => $"http://{HostAddress}:{HttpPort}";
+        public string WebRtcUrl => $"ws://{HostAddress}:{HttpPort}/ws";
     }
 }
