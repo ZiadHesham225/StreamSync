@@ -5,7 +5,7 @@ using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
 using StreamSync.Models;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 
 namespace StreamSync.Tests.Services
 {

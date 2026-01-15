@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using StreamSync.Services.InMemory;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 
 namespace StreamSync.Tests.Services
 {

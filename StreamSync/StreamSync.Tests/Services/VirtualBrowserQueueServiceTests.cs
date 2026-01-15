@@ -1,17 +1,17 @@
 using Microsoft.Extensions.Logging;
-using StreamSync.Services;
+using StreamSync.Services.InMemory;
 
 namespace StreamSync.Tests.Services
 {
     public class VirtualBrowserQueueServiceTests
     {
-        private readonly Mock<ILogger<VirtualBrowserQueueService>> _mockLogger;
-        private readonly VirtualBrowserQueueService _queueService;
+        private readonly Mock<ILogger<InMemoryVirtualBrowserQueueService>> _mockLogger;
+        private readonly InMemoryVirtualBrowserQueueService _queueService;
 
         public VirtualBrowserQueueServiceTests()
         {
-            _mockLogger = new Mock<ILogger<VirtualBrowserQueueService>>();
-            _queueService = new VirtualBrowserQueueService(_mockLogger.Object);
+            _mockLogger = new Mock<ILogger<InMemoryVirtualBrowserQueueService>>();
+            _queueService = new InMemoryVirtualBrowserQueueService(_mockLogger.Object);
         }
 
         #region AddToQueueAsync Tests

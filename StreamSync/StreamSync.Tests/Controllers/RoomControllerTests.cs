@@ -6,7 +6,7 @@ using StreamSync.Services.Interfaces;
 using StreamSync.Controllers;
 using StreamSync.DTOs;
 using StreamSync.Models;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 using System.Security.Claims;
 
 namespace StreamSync.Tests.Controllers
