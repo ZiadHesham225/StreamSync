@@ -5,33 +5,6 @@
 
 StreamSync is a collaborative platform for hosting real-time watch parties, enabling users to create interactive rooms where they can watch YouTube videos, chat, and share control with friends. Featuring advanced video synchronization, live chat, user management, and a unique Virtual Browser powered by Docker/Neko for shared browsing experiences. The backend is built with ASP.NET Core with Redis caching support, while the frontend leverages React and TypeScript for a seamless, modern user experience.
 
-## 🏗️ Architecture
-
-StreamSync is designed for **horizontal scalability** with support for multiple server instances:
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │     │   Client    │     │   Client    │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       ▼                   ▼                   ▼
-┌─────────────┐     ┌─────────────┐
-│  Server A   │     │  Server B   │    (Load Balanced)
-│  Containers │     │  Containers │
-│   neko-0    │     │   neko-0    │
-│   neko-1    │     │   neko-1    │
-└──────┬──────┘     └──────┬──────┘
-       │                   │
-       └─────────┬─────────┘
-                 ▼
-         ┌─────────────┐
-         │    Redis    │  (Shared State)
-         │  - Cache    │
-         │  - Queue    │
-         │  - Sessions │
-         └─────────────┘
-```
-
 ### Key Architecture Features
 - **Distributed Caching**: Redis-based caching with decorator pattern for transparent cache-aside
 - **Shared Queue**: Redis-backed virtual browser queue ensures fairness across all servers
