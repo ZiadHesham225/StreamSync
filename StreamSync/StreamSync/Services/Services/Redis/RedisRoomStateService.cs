@@ -1,32 +1,30 @@
-using StackExchange.Redis;
-using StreamSync.Models.InMemory;
+using StreamSync.DataAccess.Interfaces;
+using StreamSync.Models.RealTime;
 using StreamSync.Services.Interfaces;
-using System.Text.Json;
 
 namespace StreamSync.Services.Redis
 {
     /// <summary>
     /// Redis-based implementation of IRoomStateService.
     /// Stores room participants and chat messages in Redis for persistence and scalability.
+    /// Uses ICacheService abstraction to avoid direct Redis dependency in service layer.
     /// </summary>
     public class RedisRoomStateService : IRoomStateService
     {
-        private readonly IConnectionMultiplexer _redis;
-        private readonly IDatabase _db;
+        private readonly ICacheService _cache;
         private readonly ILogger<RedisRoomStateService> _logger;
         private const int MAX_MESSAGES_PER_ROOM = 50;
         private static readonly TimeSpan RoomExpiry = TimeSpan.FromHours(24);
-        private static readonly TimeSpan EmptyRoomExpiry = TimeSpan.FromHours(3); // Keep data 3 hours after room empties
+        private static readonly TimeSpan EmptyRoomExpiry = TimeSpan.FromHours(3);
 
-        // Redis key prefixes
-        private const string PARTICIPANTS_KEY = "room:{0}:participants";
-        private const string MESSAGES_KEY = "room:{0}:messages";
-        private const string ACTIVE_ROOMS_KEY = "active_rooms";
+        // Cache key formats
+        private const string PARTICIPANTS_KEY = "roomstate:{0}:participants";
+        private const string MESSAGES_KEY = "roomstate:{0}:messages";
+        private const string ACTIVE_ROOMS_KEY = "roomstate:active_rooms";
 
-        public RedisRoomStateService(IConnectionMultiplexer redis, ILogger<RedisRoomStateService> logger)
+        public RedisRoomStateService(ICacheService cache, ILogger<RedisRoomStateService> logger)
         {
-            _redis = redis;
-            _db = redis.GetDatabase();
+            _cache = cache;
             _logger = logger;
         }
 
@@ -35,20 +33,18 @@ namespace StreamSync.Services.Redis
         public async Task AddParticipantAsync(string roomId, RoomParticipant participant)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            var json = JsonSerializer.Serialize(participant);
             
-            await _db.HashSetAsync(key, participant.Id, json);
-            await _db.KeyExpireAsync(key, RoomExpiry);
+            await _cache.HashSetAsync(key, participant.Id, participant, RoomExpiry);
             
             // Also reset message expiry when someone joins
             var messagesKey = string.Format(MESSAGES_KEY, roomId);
-            if (await _db.KeyExistsAsync(messagesKey))
+            if (await _cache.ExistsAsync(messagesKey))
             {
-                await _db.KeyExpireAsync(messagesKey, RoomExpiry);
+                await _cache.SetExpirationAsync(messagesKey, RoomExpiry);
             }
             
             // Track active rooms
-            await _db.SetAddAsync(ACTIVE_ROOMS_KEY, roomId);
+            await _cache.SetAddAsync(ACTIVE_ROOMS_KEY, roomId);
             
             _logger.LogDebug("Added participant {ParticipantId} to room {RoomId}", participant.Id, roomId);
         }
@@ -56,19 +52,19 @@ namespace StreamSync.Services.Redis
         public async Task RemoveParticipantAsync(string roomId, string participantId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            await _db.HashDeleteAsync(key, participantId);
+            await _cache.HashRemoveAsync(key, participantId);
             
             // Check if room is now empty
-            var count = await _db.HashLengthAsync(key);
+            var count = await _cache.HashLengthAsync(key);
             if (count == 0)
             {
-                // Room is empty - set messages to expire in 3 hours instead of deleting immediately
-                await _db.SetRemoveAsync(ACTIVE_ROOMS_KEY, roomId);
+                // Room is empty - set messages to expire in 3 hours
+                await _cache.SetRemoveAsync(ACTIVE_ROOMS_KEY, roomId);
                 
-                // Set expiry on messages and participants keys (keeps data for 3 hours)
+                // Set expiry on messages and participants keys
                 var messagesKey = string.Format(MESSAGES_KEY, roomId);
-                await _db.KeyExpireAsync(key, EmptyRoomExpiry);
-                await _db.KeyExpireAsync(messagesKey, EmptyRoomExpiry);
+                await _cache.SetExpirationAsync(key, EmptyRoomExpiry);
+                await _cache.SetExpirationAsync(messagesKey, EmptyRoomExpiry);
                 
                 _logger.LogInformation("Room {RoomId} is now empty. Data will expire in {Hours} hours.", roomId, EmptyRoomExpiry.TotalHours);
             }
@@ -79,24 +75,17 @@ namespace StreamSync.Services.Redis
         public async Task<RoomParticipant?> GetParticipantAsync(string roomId, string participantId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            var json = await _db.HashGetAsync(key, participantId);
-            
-            if (json.IsNullOrEmpty)
-                return null;
-                
-            return JsonSerializer.Deserialize<RoomParticipant>(json!);
+            return await _cache.HashGetAsync<RoomParticipant>(key, participantId);
         }
 
         public async Task<List<RoomParticipant>> GetRoomParticipantsAsync(string roomId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            var entries = await _db.HashGetAllAsync(key);
+            var entries = await _cache.HashGetAllAsync<RoomParticipant>(key);
             
-            return entries
-                .Select(e => JsonSerializer.Deserialize<RoomParticipant>(e.Value!))
-                .Where(p => p != null)
-                .OrderBy(p => p!.JoinedAt)
-                .ToList()!;
+            return entries.Values
+                .OrderBy(p => p.JoinedAt)
+                .ToList();
         }
 
         public async Task<RoomParticipant?> GetControllerAsync(string roomId)
@@ -108,16 +97,13 @@ namespace StreamSync.Services.Redis
         public async Task SetControllerAsync(string roomId, string participantId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            var entries = await _db.HashGetAllAsync(key);
+            var entries = await _cache.HashGetAllAsync<RoomParticipant>(key);
             
             foreach (var entry in entries)
             {
-                var participant = JsonSerializer.Deserialize<RoomParticipant>(entry.Value!);
-                if (participant != null)
-                {
-                    participant.HasControl = participant.Id == participantId;
-                    await _db.HashSetAsync(key, participant.Id, JsonSerializer.Serialize(participant));
-                }
+                var participant = entry.Value;
+                participant.HasControl = participant.Id == participantId;
+                await _cache.HashSetAsync(key, participant.Id, participant);
             }
             
             _logger.LogDebug("Set controller to {ParticipantId} in room {RoomId}", participantId, roomId);
@@ -137,7 +123,7 @@ namespace StreamSync.Services.Redis
             foreach (var p in participants)
             {
                 p.HasControl = false;
-                await _db.HashSetAsync(key, p.Id, JsonSerializer.Serialize(p));
+                await _cache.HashSetAsync(key, p.Id, p);
             }
 
             // Give control to next participant
@@ -145,7 +131,7 @@ namespace StreamSync.Services.Redis
             {
                 var next = remaining.First();
                 next.HasControl = true;
-                await _db.HashSetAsync(key, next.Id, JsonSerializer.Serialize(next));
+                await _cache.HashSetAsync(key, next.Id, next);
                 
                 _logger.LogDebug("Transferred control to {ParticipantId} in room {RoomId}", next.Id, roomId);
             }
@@ -165,7 +151,7 @@ namespace StreamSync.Services.Redis
                 // No one has control - give to oldest participant
                 var oldest = participants.OrderBy(p => p.JoinedAt).First();
                 oldest.HasControl = true;
-                await _db.HashSetAsync(key, oldest.Id, JsonSerializer.Serialize(oldest));
+                await _cache.HashSetAsync(key, oldest.Id, oldest);
                 
                 _logger.LogDebug("Assigned control to oldest participant {ParticipantId} in room {RoomId}", oldest.Id, roomId);
             }
@@ -176,7 +162,7 @@ namespace StreamSync.Services.Redis
                 for (int i = 1; i < sorted.Count; i++)
                 {
                     sorted[i].HasControl = false;
-                    await _db.HashSetAsync(key, sorted[i].Id, JsonSerializer.Serialize(sorted[i]));
+                    await _cache.HashSetAsync(key, sorted[i].Id, sorted[i]);
                 }
                 
                 _logger.LogDebug("Fixed multiple controllers in room {RoomId}, kept {ParticipantId}", roomId, sorted[0].Id);
@@ -186,13 +172,13 @@ namespace StreamSync.Services.Redis
         public async Task<int> GetParticipantCountAsync(string roomId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            return (int)await _db.HashLengthAsync(key);
+            return (int)await _cache.HashLengthAsync(key);
         }
 
         public async Task<bool> IsParticipantInRoomAsync(string roomId, string participantId)
         {
             var key = string.Format(PARTICIPANTS_KEY, roomId);
-            return await _db.HashExistsAsync(key, participantId);
+            return await _cache.HashExistsAsync(key, participantId);
         }
 
         public async Task UpdateParticipantConnectionIdAsync(string roomId, string participantId, string newConnectionId)
@@ -202,7 +188,7 @@ namespace StreamSync.Services.Redis
             {
                 participant.ConnectionId = newConnectionId;
                 var key = string.Format(PARTICIPANTS_KEY, roomId);
-                await _db.HashSetAsync(key, participantId, JsonSerializer.Serialize(participant));
+                await _cache.HashSetAsync(key, participantId, participant);
                 
                 _logger.LogDebug("Updated connection ID for participant {ParticipantId} in room {RoomId}", participantId, roomId);
             }
@@ -215,12 +201,7 @@ namespace StreamSync.Services.Redis
         public async Task AddMessageAsync(string roomId, ChatMessage message)
         {
             var key = string.Format(MESSAGES_KEY, roomId);
-            var json = JsonSerializer.Serialize(message);
-            
-            // Add to list and trim to max size
-            await _db.ListRightPushAsync(key, json);
-            await _db.ListTrimAsync(key, -MAX_MESSAGES_PER_ROOM, -1);
-            await _db.KeyExpireAsync(key, RoomExpiry);
+            await _cache.ListPushAsync(key, message, MAX_MESSAGES_PER_ROOM, RoomExpiry);
             
             _logger.LogDebug("Added message to room {RoomId}", roomId);
         }
@@ -228,12 +209,7 @@ namespace StreamSync.Services.Redis
         public async Task<List<ChatMessage>> GetRoomMessagesAsync(string roomId)
         {
             var key = string.Format(MESSAGES_KEY, roomId);
-            var values = await _db.ListRangeAsync(key, 0, -1);
-            
-            return values
-                .Select(v => JsonSerializer.Deserialize<ChatMessage>(v!))
-                .Where(m => m != null)
-                .ToList()!;
+            return await _cache.ListRangeAsync<ChatMessage>(key);
         }
 
         #endregion
@@ -245,16 +221,17 @@ namespace StreamSync.Services.Redis
             var participantsKey = string.Format(PARTICIPANTS_KEY, roomId);
             var messagesKey = string.Format(MESSAGES_KEY, roomId);
             
-            await _db.KeyDeleteAsync(new RedisKey[] { participantsKey, messagesKey });
-            await _db.SetRemoveAsync(ACTIVE_ROOMS_KEY, roomId);
+            await _cache.RemoveAsync(participantsKey);
+            await _cache.RemoveAsync(messagesKey);
+            await _cache.SetRemoveAsync(ACTIVE_ROOMS_KEY, roomId);
             
             _logger.LogDebug("Cleared all data for room {RoomId}", roomId);
         }
 
         public async Task<List<string>> GetActiveRoomIdsAsync()
         {
-            var members = await _db.SetMembersAsync(ACTIVE_ROOMS_KEY);
-            return members.Select(m => m.ToString()).ToList();
+            var members = await _cache.SetMembersAsync(ACTIVE_ROOMS_KEY);
+            return members.ToList();
         }
 
         public async Task CleanupEmptyRoomsAsync()
