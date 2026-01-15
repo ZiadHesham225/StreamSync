@@ -2,18 +2,23 @@ using System.Collections.Concurrent;
 using StreamSync.DTOs;
 using StreamSync.Services.Interfaces;
 
-namespace StreamSync.Services
+namespace StreamSync.Services.InMemory
 {
-    public class VirtualBrowserQueueService : IVirtualBrowserQueueService
+    /// <summary>
+    /// In-memory implementation of IVirtualBrowserQueueService.
+    /// Use this for single-instance deployments or when Redis is not available.
+    /// For horizontal scaling, use RedisVirtualBrowserQueueService instead.
+    /// </summary>
+    public class InMemoryVirtualBrowserQueueService : IVirtualBrowserQueueService
     {
         private readonly ConcurrentQueue<string> _waitingQueue = new();
         private readonly ConcurrentDictionary<string, QueueEntry> _queueEntries = new();
         private readonly ConcurrentDictionary<string, NotificationEntry> _notifications = new();
-        private readonly ILogger<VirtualBrowserQueueService> _logger;
+        private readonly ILogger<InMemoryVirtualBrowserQueueService> _logger;
         
         private const int NOTIFICATION_TIMEOUT_MINUTES = 2;
 
-        public VirtualBrowserQueueService(ILogger<VirtualBrowserQueueService> logger)
+        public InMemoryVirtualBrowserQueueService(ILogger<InMemoryVirtualBrowserQueueService> logger)
         {
             _logger = logger;
         }
