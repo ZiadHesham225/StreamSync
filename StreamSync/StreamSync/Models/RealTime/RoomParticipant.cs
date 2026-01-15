@@ -1,4 +1,4 @@
-namespace StreamSync.Models.InMemory
+namespace StreamSync.Models.RealTime
 {
     public class RoomParticipant
     {
