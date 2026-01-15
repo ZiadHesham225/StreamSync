@@ -3,38 +3,69 @@
 
 ## Description
 
-StreamSync is a collaborative platform for hosting real-time watch parties, enabling users to create interactive rooms where they can watch YouTube videos, chat, and share control with friends. Featuring advanced video synchronization, live chat, user management, and a unique Virtual Browser powered by Docker/Neko for shared browsing experiences. The backend is built with ASP.NET Core, while the frontend leverages React and TypeScript for a seamless, modern user experience.
+StreamSync is a collaborative platform for hosting real-time watch parties, enabling users to create interactive rooms where they can watch YouTube videos, chat, and share control with friends. Featuring advanced video synchronization, live chat, user management, and a unique Virtual Browser powered by Docker/Neko for shared browsing experiences. The backend is built with ASP.NET Core with Redis caching support, while the frontend leverages React and TypeScript for a seamless, modern user experience.
+
+## 🏗️ Architecture
+
+StreamSync is designed for **horizontal scalability** with support for multiple server instances:
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Client    │     │   Client    │     │   Client    │
+└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+       │                   │                   │
+       ▼                   ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│  Server A   │     │  Server B   │    (Load Balanced)
+│  Containers │     │  Containers │
+│   neko-0    │     │   neko-0    │
+│   neko-1    │     │   neko-1    │
+└──────┬──────┘     └──────┬──────┘
+       │                   │
+       └─────────┬─────────┘
+                 ▼
+         ┌─────────────┐
+         │    Redis    │  (Shared State)
+         │  - Cache    │
+         │  - Queue    │
+         │  - Sessions │
+         └─────────────┘
+```
+
+### Key Architecture Features
+- **Distributed Caching**: Redis-based caching with decorator pattern for transparent cache-aside
+- **Shared Queue**: Redis-backed virtual browser queue ensures fairness across all servers
+- **Cross-Server Containers**: Configurable `HostAddress` allows users on Server A to access containers on Server B
+- **Graceful Fallback**: Works in single-server mode without Redis
 
 ## 🖥️ Virtual Browser Feature (Neko)
 
-StreamSync now supports a **Virtual Browser** feature powered by [Neko](https://github.com/m1k1o/neko) running in Docker containers. This allows users to request a shared browser session for collaborative browsing, streaming, or remote control directly from the app.
+StreamSync supports a **Virtual Browser** feature powered by [Neko](https://github.com/m1k1o/neko) running in Docker containers. This allows users to request a shared browser session for collaborative browsing, streaming, or remote control directly from the app.
 
 ### Key Capabilities
 - **Request a Virtual Browser**: Room admins/controllers can request a browser session for their room.
-- **Queue System**: If all browsers are busy, rooms are placed in a queue and notified when a browser becomes available.
-- **WebRTC Streaming**: Real-time audio/video streaming using Neko's WebRTC.
+- **Queue System**: Fair queue across all server instances - if all browsers are busy, rooms are queued and notified when available.
+- **WebRTC Streaming**: Real-time audio/video streaming using Neko's WebRTC with NAT traversal support.
 - **Session Management**: Automatic allocation, expiration, and cleanup of browser sessions.
 - **Remote Control**: Interact with the browser (mouse, keyboard, navigation) from the app UI.
+- **Horizontal Scaling**: Each server manages its own container pool, but the queue is shared via Redis.
 
 ### Backend Services Overview
 - `VirtualBrowserController`: API endpoints for requesting, controlling, and managing virtual browser sessions.
 - `NekoVirtualBrowserService`: Core logic for allocating containers, session lifecycle, and integration with Neko.
-- `VirtualBrowserQueueService`: Handles queuing, notifications, and room queue status.
+- `RedisVirtualBrowserQueueService`: Redis-backed queue for cross-server fairness (with `InMemoryVirtualBrowserQueueService` fallback).
+- `ContainerConfigurationService`: Generates Docker Compose files with configurable `HostAddress` for cross-server access.
 - `VirtualBrowserStartupService`: Initializes the browser pool on backend startup.
 - `VirtualBrowserMaintenanceService`: Background service for session expiration and notification processing.
-- DTOs and Models: `VirtualBrowserDto`, `VirtualBrowserRequestDto`, `VirtualBrowserControlDto`, etc.
-
-
-> **Note:** You can scale the number of Neko containers for more concurrent browser sessions. Update backend configuration accordingly.
 
 ### How to Use
 1. **Room admin/controller requests a Virtual Browser** via the app UI.
 2. If available, a browser session is allocated and a WebRTC stream URL is provided.
-3. If busy, the room is queued and notified when a browser is free.
+3. If busy, the room is queued and notified when a browser is free (queue is fair across all servers).
 4. Participants can interact with the browser (mouse, keyboard, navigation).
 5. Sessions expire after a set duration (e.g., 3 hours) and are automatically cleaned up.
 
-For more details, see the backend services in `StreamSync/StreamSync/Services/` and API endpoints in `VirtualBrowserController`.
+> **Note:** For horizontal scaling, configure `NekoContainer:HostAddress` per server instance (see Configuration section).
 
 ## ✨ Features
 
@@ -48,13 +79,12 @@ For more details, see the backend services in `StreamSync/StreamSync/Services/` 
 
 ### 🏠 Room Management
 - **Create public/private rooms**: Host watch parties with customizable privacy settings
- - **Create public/private rooms**: Host StreamSync rooms with customizable privacy settings
 - **Room passwords**: Secure private rooms with password protection
 - **Invite codes**: Easy room sharing with unique invite codes
 - **Participant management**: View active participants with avatar support
 - **Admin controls**: Room creators can close rooms and manage all aspects
 - **Auto cleanup**: Rooms automatically clean up when empty
-- **Room state persistence**: Maintains video state and participant list
+- **Room state persistence**: Maintains video state and participant list (Redis or in-memory)
 
 ### 💬 Real-time Chat
 - **Live messaging**: Chat with other participants during video playback
@@ -83,16 +113,25 @@ For more details, see the backend services in `StreamSync/StreamSync/Services/` 
 - **Leave handling**: Graceful control transfer when controllers leave
 - **Responsive design**: Works seamlessly on desktop and mobile
 
+### ⚡ Performance & Scalability
+- **Redis caching**: Transparent caching with decorator pattern for room, user, and YouTube data
+- **Horizontal scaling**: Multiple server instances with shared Redis state
+- **Graceful degradation**: Falls back to in-memory storage without Redis
+- **Configurable TTLs**: Fine-tuned cache durations for different data types
+
 ## 🛠️ Tech Stack
 
 ### Backend (.NET 8)
 - **ASP.NET Core Web API**: RESTful API endpoints
 - **SignalR**: Real-time communication hub
 - **Entity Framework Core**: Database ORM with SQL Server
+- **Redis (StackExchange.Redis)**: Distributed caching and shared state
+- **Scrutor**: Decorator pattern for DI registration
 - **JWT Authentication**: Secure token-based auth
 - **Google YouTube API v3**: Video search and metadata
 - **BCrypt**: Password hashing
 - **MailKit**: Email services
+- **Docker**: Neko container orchestration
 
 ### Frontend (React 18)
 - **React with TypeScript**: Type-safe component development
@@ -105,8 +144,9 @@ For more details, see the backend services in `StreamSync/StreamSync/Services/` 
 ## 📋 Prerequisites
 
 - **.NET 8 SDK**: [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
-- **Node.js 16+**: [Download here](https://nodejs.org/)
+- **Node.js 18+**: [Download here](https://nodejs.org/)
 - **SQL Server**: LocalDB, Express, or full SQL Server
+- **Redis** (optional): For distributed caching and horizontal scaling. [Download here](https://redis.io/download/)
 - **YouTube API Key**: [Get from Google Cloud Console](https://console.cloud.google.com/)
 - **Docker**: Required for running the Virtual Browser (Neko) containers. [Download Docker](https://www.docker.com/products/docker-desktop)
 
@@ -155,7 +195,8 @@ Update `StreamSync/appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=StreamSyncDb;Trusted_Connection=true;"
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=StreamSyncDb;Trusted_Connection=true;",
+    "Redis": "localhost:6379"
   },
   "JWT": {
     "ValidIssuer": "https://localhost:7000",
@@ -170,9 +211,36 @@ Update `StreamSync/appsettings.json`:
     "SmtpPort": 587,
     "SmtpUsername": "your-email@gmail.com",
     "SmtpPassword": "your-app-password"
+  },
+  "NekoContainer": {
+    "Image": "ghcr.io/m1k1o/neko/chromium:latest",
+    "MaxContainers": 2,
+    "HostAddress": "localhost"
   }
 }
 ```
+
+### 5. Multi-Server Deployment (Optional)
+
+For horizontal scaling with multiple server instances:
+
+```bash
+# Server A (192.168.1.10)
+$env:NekoContainer__HostAddress = "192.168.1.10"
+dotnet run
+
+# Server B (192.168.1.20)  
+$env:NekoContainer__HostAddress = "192.168.1.20"
+dotnet run
+```
+
+| Setting | appsettings.json | Environment Variable |
+|---------|-----------------|---------------------|
+| Redis Connection | `ConnectionStrings:Redis` | `ConnectionStrings__Redis` |
+| Container Host | `NekoContainer:HostAddress` | `NekoContainer__HostAddress` |
+| Max Containers | `NekoContainer:MaxContainers` | `NekoContainer__MaxContainers` |
+
+> **Note:** Environment variables override appsettings.json values. Use environment variables for per-instance configuration.
 
 ## 🎯 Usage
 
