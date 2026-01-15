@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Hubs;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 
 namespace StreamSync.Services
 {

@@ -5,7 +5,7 @@ using System.Security.Claims;
 using StreamSync.Services.Interfaces;
 using StreamSync.DTOs;
 using StreamSync.Models;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 
 namespace StreamSync.Controllers
 {

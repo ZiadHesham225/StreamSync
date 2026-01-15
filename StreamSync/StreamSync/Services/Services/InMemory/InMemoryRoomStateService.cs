@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 using StreamSync.Services.Interfaces;
 
 namespace StreamSync.Services.InMemory

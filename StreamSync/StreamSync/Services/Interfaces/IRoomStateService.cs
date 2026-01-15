@@ -1,4 +1,4 @@
-using StreamSync.Models.InMemory;
+using StreamSync.Models.RealTime;
 
 namespace StreamSync.Services.Interfaces
 {
