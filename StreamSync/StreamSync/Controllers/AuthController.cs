@@ -11,7 +11,7 @@ namespace StreamSync.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AuthController : ControllerBase
+    public class AuthController : BaseApiController
     {
         private readonly IAuthService _authService;
         private readonly ILogger<AuthController> _logger;
@@ -96,7 +96,7 @@ namespace StreamSync.Controllers
         {
             try
             {
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetAuthenticatedUserId();
 
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized(new { message = "User not authenticated" });
@@ -120,11 +120,12 @@ namespace StreamSync.Controllers
             }
             catch (ApplicationException ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = "An unexpected error occurred.", Details = ex.Message });
+                _logger.LogError(ex, "Error processing forgot password request");
+                return StatusCode(500, new { message = "An error occurred while processing forgot password request" });
             }
         }
         [HttpPost("reset-password")]
@@ -137,11 +138,12 @@ namespace StreamSync.Controllers
             }
             catch (ApplicationException ex)
             {
-                return BadRequest(new { Message = ex.Message });
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = "An unexpected error occurred.", Details = ex.Message });
+                _logger.LogError(ex, "Error resetting password");
+                return StatusCode(500, new { message = "An error occurred while resetting password" });
             }
         }
     }

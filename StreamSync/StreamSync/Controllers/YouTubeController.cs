@@ -8,7 +8,7 @@ namespace StreamSync.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class YouTubeController : ControllerBase
+    public class YouTubeController : BaseApiController
     {
         private readonly IYouTubeService _youTubeService;
         private readonly ILogger<YouTubeController> _logger;
@@ -43,7 +43,7 @@ namespace StreamSync.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error searching YouTube videos");
-                return StatusCode(500, "An error occurred while searching videos");
+                return StatusCode(500, new { message = "An error occurred while searching videos" });
             }
         }
 
@@ -68,7 +68,7 @@ namespace StreamSync.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting YouTube video details");
-                return StatusCode(500, "An error occurred while getting video details");
+                return StatusCode(500, new { message = "An error occurred while getting video details" });
             }
         }
 
@@ -87,7 +87,7 @@ namespace StreamSync.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error streaming YouTube video");
-                return StatusCode(500, "An error occurred while streaming the video");
+                return StatusCode(500, new { message = "An error occurred while streaming the video" });
             }
         }
     }
